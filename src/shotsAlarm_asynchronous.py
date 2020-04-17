@@ -64,7 +64,7 @@ class ASpotipy:
             sp = spotipy.Spotify(auth=token)
             return sp
         else:
-            print("Can't get token for %s" % usr)
+            print("Can't get token for %s" % user)
             return 0
 
     # take a song URI and return total seconds and
