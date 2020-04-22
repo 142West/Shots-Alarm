@@ -1,6 +1,4 @@
 import Private
-import Tkinter as tkinter
-import ttk
 import sys
 import time
 import threading
@@ -14,9 +12,13 @@ from RPLCD.gpio import CharLCD
 from RPi import GPIO
 
 # globally init our pullstation and strobe
+print GPIO.getmode()
+GPIO.setmode(GPIO.BCM)
 pullStation = Button(4)
 strobe = DigitalOutputDevice(17)
 strobe.off()
+
+lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
 
 # fullscreen (0 for test, 1 for run)
 fullscreen = False
@@ -81,6 +83,7 @@ class ASpotipy:
         # double check that we are logged in
         self.spLogin()
         trackData = self.sp.current_user_playing_track()
+
         return trackData
 
     # take currently playing track, return song progress in mills
@@ -167,6 +170,7 @@ class hueControl:
         self.orange = [0.5706, 0.4078]
 
         self.b = Bridge('10.142.1.114')
+        self.b.connect()
 
         self.b.get_api()
 
@@ -261,15 +265,13 @@ class hueControl:
 
 
 class DisplayController:
-    def __init__(self, master, queue, alarmCancelCommand, GUIhideCommand, GUIshowCommand):
+    def __init__(self, queue, alarmCancelCommand):
         self.queue = queue
         self.alarmCancel = alarmCancelCommand
-        self.GUIhide = GUIhideCommand
-        self.GUIshow = GUIshowCommand
-        self.seconds_var = tkinter.StringVar()
-        self.seconds_var.set("(HIDDEN)")
 
         # Set up the GUI
+
+        '''
         self.frame = ttk.Frame(master, padding="5 5")
         if fullscreen:
             self.frame.master.attributes('-fullscreen', True)
@@ -283,7 +285,11 @@ class DisplayController:
         self.frame.grid_rowconfigure(1, minsize=root.winfo_screenheight() / 2)
         self.frame.grid()
         self.frame.master.protocol("WM_DELETE_WINDOW", self.cancel)
+        '''
 
+    def setMessage(self, value):
+        print value;
+        lcd.write_string(value)
 
     def processIncoming(self, cdLen, goHold, songLen):
         """Handle all messages currently in the queue, if any."""
@@ -293,12 +299,10 @@ class DisplayController:
 
                 # did we actually send something in the queue
                 if not count == None:
-                    # show GUI
-                    self.GUIshow()
 
                     # countdown stage
                     if (count < cdLen):
-                        self.seconds_var.set("SHOTS IN: {}".format(cdLen - count))
+                        self.setMessage("SHOTS IN: {}".format(cdLen - count))
 
                     # GO!! stage
                     else:
@@ -306,14 +310,13 @@ class DisplayController:
                         strobe.on()
                         # alternate between GO and blank
                         if (count % 2):
-                            self.seconds_var.set("GO!! GO!! GO!!")
+                            self.setMessage("GO!! GO!! GO!!")
                         else:
-                            self.seconds_var.set("")
+                            self.setMessage("")
 
                 else:  # count == None
                     # hide GUI
-                    self.GUIhide()
-                    self.seconds_var.set("(HIDDEN)")
+                    self.setMessage("")
                     # turn off strobe
                     strobe.off()
 
@@ -338,23 +341,16 @@ class ThreadedClient:
     means that you have all the thread controls in a single place.
     """
 
-    def __init__(self, master, user, song, cdLen, goHold):
+    def __init__(self, user, song, cdLen, goHold):
         """
         Start the GUI and the asynchronous threads. We are in the main
         (original) thread of the application, which will later be used by
         the GUI as well. We spawn a new thread for the worker (I/O).
         """
-        # GUI will be visible window after init
-        self.master = master
-
-        # get window size
-        self.w = self.master.winfo_screenwidth()
-        self.h = self.master.winfo_screenheight()
 
         # GUI will be visible after tkinter.Tk()
         # hide the GUI window for now
         self.guiVisible = 1
-        self.GUIhide()
 
         # keep track of whether alarm is active or not
         self.shotsFired = 0
@@ -389,7 +385,7 @@ class ThreadedClient:
 
         # Set up the GUIPart
         # we pass it the master (root), the queue, the endApplication function, and the hide / show functions
-        self.gui = DisplayController(master, self.queue, self.alarmCancel, self.GUIhide, self.GUIshow)
+        self.gui = DisplayController(self.queue, self.alarmCancel)
 
         # Set up the Spotify instance
         self.mySpotipy = ASpotipy(user, Private.CLIENT_ID, Private.CLIENT_SECRET, Private.REDIRECT_URI)
@@ -427,9 +423,9 @@ class ThreadedClient:
         if not self.running:
             # This is the brutal stop of the system.
             # should do some cleanup before actually shutting it down.
-            import sys
             sys.exit(1)
-        self.master.after(200, self.periodicCall)
+
+        threading.Timer(.2, self.periodicCall).start()
 
     ###########################################
     ## Worker Threads (for asynchronous I/O) ##
@@ -498,31 +494,6 @@ class ThreadedClient:
                 self.myHue.advanceLights(50)
             time.sleep(10)
 
-    ####################
-    ## GUI Visibility ##
-    ####################
-
-    # hides the GUI window
-    def GUIhide(self):
-        if self.guiVisible:
-            # hide the root window
-            self.master.withdraw()
-            # remove root window border and title bar
-            self.master.overrideredirect(1)
-            # update to ensure changes are reflected
-            self.master.update()
-            # keep track of gui visibility
-            self.guiVisible = 0
-
-    # reveals the GUI window
-    def GUIshow(self):
-        if not self.guiVisible:
-            self.master.update()
-            self.master.deiconify()
-            if fullscreen:
-                self.master.geometry("{}x{}+0+0".format(self.w, self.h))
-            # keep track of gui visibility
-            self.guiVisible = 1
 
     ##########################
     ## PullStation Tracking ##
@@ -592,8 +563,6 @@ class ThreadedClient:
                 self.mySpotipy.playWithContext(self.mySpot)
                 self.mySpotipy.volumeDown()
 
-            # hide gui
-            self.GUIhide()
 
     ############################
     ## Time String Formatting ##
@@ -614,8 +583,6 @@ class ThreadedClient:
         return self.time2string(self.seconds2time(secs))
 
 
-# initalise our tkinter instance
-root = tkinter.Tk()
 
 # set ThreadedClient params
 # user = "aflynn73"
@@ -627,11 +594,9 @@ cdLen = 60
 goHold = 15
 
 # initialize our main thread management and pass root
-client = ThreadedClient(root, user, song, cdLen, goHold)
+client = ThreadedClient(user, song, cdLen, goHold)
 
 # set up events for our pullstation
 pullStation.when_pressed = client.alarmActivate
 pullStation.when_released = client.alarmCancel
 
-# pass off the main loop to root
-root.mainloop()

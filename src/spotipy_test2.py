@@ -1,6 +1,6 @@
 import sys
 import time
-from gpiozero
+import gpiozero
 import spotipy
 import spotipy.util as util
 
