@@ -1,22 +1,24 @@
-import Private
+import src.Private as Private
 import sys
 import time
 import threading
-import Queue
+import queue
 from gpiozero import Button, DigitalOutputDevice
 import spotipy
-import spotipy.util as util
+import src.shotsAlarmUtil as util
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
 from RPi import GPIO
 
 # globally init our pullstation and strobe
-print GPIO.getmode()
+print(GPIO.getmode())
 GPIO.setmode(GPIO.BCM)
 pullStation = Button(4)
 strobe = DigitalOutputDevice(17)
 strobe.off()
+
+useHue = False
 
 lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
 
@@ -83,6 +85,7 @@ class ASpotipy:
         # double check that we are logged in
         self.spLogin()
         trackData = self.sp.current_user_playing_track()
+        print(trackData)
 
         return trackData
 
@@ -288,7 +291,7 @@ class DisplayController:
         '''
 
     def setMessage(self, value):
-        print value;
+        print(value);
         lcd.write_string(value)
 
     def processIncoming(self, cdLen, goHold, songLen):
@@ -320,7 +323,7 @@ class DisplayController:
                     # turn off strobe
                     strobe.off()
 
-            except Queue.Empty:
+            except queue.Empty:
                 # just on general principles, although we don't
                 # expect this branch to be taken in this case
                 pass
@@ -378,7 +381,7 @@ class ThreadedClient:
         self.goHold = goHold
 
         # Create the queue
-        self.queue = Queue.Queue()
+        self.queue = queue.Queue()
 
         # Create a lock to access shared resources amongst threads
         self.lock = threading.Lock()
@@ -391,7 +394,8 @@ class ThreadedClient:
         self.mySpotipy = ASpotipy(user, Private.CLIENT_ID, Private.CLIENT_SECRET, Private.REDIRECT_URI)
 
         # setup hue
-        self.myHue = hueControl()
+        if (useHue):
+            self.myHue = hueControl()
 
         # Set up the thread to do asynchronous I/O
         self.running = 1
@@ -473,27 +477,27 @@ class ThreadedClient:
 
     def workerThread3(self):
         while self.running:
-            if self.shotsFired and not self.flashed:
-                time.sleep(0.2)
-                self.flashed = 1
-                self.myHue.flashLights(self.myHue.red, 1, 5)
-            elif self.shotsFired and self.flashed and self.count >= 6 and self.count <= self.cdLen:
-                # self.myHue.advanceLights(1)
-                self.myHue.advanceAsOne(1)
-                time.sleep(1)
-            elif self.shotsFired and self.flashed and not self.flashed2 and self.count >= self.cdLen:
-                print("green")
-                self.flashed2 = 1
-                self.myHue.flashLights(self.myHue.green, 1, 5)
-            else:
-                time.sleep(0.2)
+            if useHue:
+                if self.shotsFired and not self.flashed:
+                    time.sleep(0.2)
+                    self.flashed = 1
+                    self.myHue.flashLights(self.myHue.red, 1, 5)
+                elif self.shotsFired and self.flashed and self.count >= 6 and self.count <= self.cdLen:
+                    # self.myHue.advanceLights(1)
+                    self.myHue.advanceAsOne(1)
+                    time.sleep(1)
+                elif self.shotsFired and self.flashed and not self.flashed2 and self.count >= self.cdLen:
+                    print("green")
+                    self.flashed2 = 1
+                    self.myHue.flashLights(self.myHue.green, 1, 5)
+                else:
+                    time.sleep(0.2)
 
     def workerThread4(self):
         while self.running:
-            if not self.shotsFired:
+            if not self.shotsFired and useHue == True:
                 self.myHue.advanceLights(50)
             time.sleep(10)
-
 
     ##########################
     ## PullStation Tracking ##
@@ -506,16 +510,17 @@ class ThreadedClient:
         # make sure we can get a token or refresh
         if self.mySpotipy.spLogin():
 
-            # set hue flashed to 0
-            self.flashed = 0
-            self.flashed2 = 0
+            if useHue == True:
+                # set hue flashed to 0
+                self.flashed = 0
+                self.flashed2 = 0
 
             # turn on strobe
             # strobe.on()
 
             # save our current spot
-            self.mySpot = self.mySpotipy.saveSpot()
-            print(self.mySpot)
+            # self.mySpot = self.mySpotipy.saveSpot()
+            # print(self.mySpot)
 
             # get the length of the new song
             self.songLength = self.mySpotipy.getSongLength(self.song)
@@ -547,9 +552,9 @@ class ThreadedClient:
 
             # keep track of alarm activation
             self.shotsFired = 0
-
-            self.flashed = 1
-            self.flashed2 = 1
+            if useHue == True:
+                self.flashed = 1
+                self.flashed2 = 1
 
             # make sure we have access to shared resource
             with self.lock:
@@ -562,7 +567,6 @@ class ThreadedClient:
             if self.mySpot:
                 self.mySpotipy.playWithContext(self.mySpot)
                 self.mySpotipy.volumeDown()
-
 
     ############################
     ## Time String Formatting ##
@@ -583,10 +587,10 @@ class ThreadedClient:
         return self.time2string(self.seconds2time(secs))
 
 
-
 # set ThreadedClient params
 # user = "aflynn73"
-user = "59nmtms76slm25a959sz7kieb"
+# user = "59nmtms76slm25a959sz7kieb"
+user = "vollumd2"
 # song = ASpotipy.WhiteNoise
 # song = ASpotipy.RA
 song = ASpotipy.SHOTS
@@ -599,4 +603,3 @@ client = ThreadedClient(user, song, cdLen, goHold)
 # set up events for our pullstation
 pullStation.when_pressed = client.alarmActivate
 pullStation.when_released = client.alarmCancel
-
