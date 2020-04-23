@@ -5,7 +5,7 @@ import threading
 import queue
 from gpiozero import Button, DigitalOutputDevice
 import spotipy
-import src.util.shotsAlarmUtil as util
+import src.shotsAlarmUtil as util
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
@@ -518,9 +518,9 @@ class ThreadedClient:
             # turn on strobe
             # strobe.on()
 
-            #save our current spot
-            self.mySpot = self.mySpotipy.saveSpot()
-            print(self.mySpot)
+            # save our current spot
+            # self.mySpot = self.mySpotipy.saveSpot()
+            # print(self.mySpot)
 
             # get the length of the new song
             self.songLength = self.mySpotipy.getSongLength(self.song)
