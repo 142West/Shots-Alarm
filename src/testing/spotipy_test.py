@@ -54,9 +54,9 @@ if token:
 
     sp.start_playback(None, None, [RA], None)
 
-    raw_input("Press Enter to Go Back")
+    input("Press Enter to Go Back")
     sp.start_playback(None, c_context_uri, None, {"uri": c_track_uri})
     sp.seek_track(c_progress)
     
 else:
-    print "Can't get token for", username
+    print ("Can't get token for", USERNAME)
