@@ -5,7 +5,7 @@ import threading
 import queue
 from gpiozero import Button, DigitalOutputDevice
 import spotipy
-import src.shotsAlarmUtil as util
+import src.util.shotsAlarmUtil as util
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD

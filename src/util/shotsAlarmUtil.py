@@ -6,7 +6,7 @@ __all__ = ["CLIENT_CREDS_ENV_VARS", "prompt_for_user_token"]
 
 import logging
 import os
-from src import ShotsAlarmOauth2
+from src.util import ShotsAlarmOauth2
 import spotipy
 
 LOGGER = logging.getLogger(__name__)
