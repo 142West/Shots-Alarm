@@ -6,6 +6,7 @@ import queue
 from gpiozero import Button, DigitalOutputDevice
 from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
 from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
+from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
@@ -24,133 +25,22 @@ strobe.off()
 logger.debug("GPIO initialized")
 
 useHue = False
+useDisplay = True
 logger.debug(f"Hue Integration: {useHue}")
+logger.debug(f"Display Enabled: {useDisplay}")
 
-lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
-
-# fullscreen (0 for test, 1 for run)
-fullscreen = False
-
-
-class hueControl:
-    def __init__(self):
-        self.cIntensity = 175
-        self.fIntensity = 254
-        self.nIntensity = 128
-        # self.tTime = 50
-        self.nDelay = 5
-
-        self.red = [0.6901, 0.3076]
-        self.magenta = [0.4343, 0.1936]
-        self.blue = [0.1541, 0.0836]
-        self.lblue = [0.1695, 0.3364]
-        self.green = [0.2073, 0.6531]
-        self.yellow = [0.4898, 0.4761]
-        self.orange = [0.5706, 0.4078]
-
-        self.b = Bridge('10.142.1.114')
-        self.b.connect()
-
-        self.b.get_api()
-
-    def updateLR(self, command):
-        self.b.set_group(4, command)
-
-    def updateDoor(self, command):
-        self.b.set_group(5, command)
-
-    def updateHW(self, command):
-        self.b.set_group(6, command)
-
-    def updateKitchen(self, command):
-        self.b.set_group(2, command)
-
-    def flashLights(self, color, delay, seconds):
-        command = {'transitiontime': 1, 'xy': color, 'bri': self.fIntensity}
-        self.b.set_group(0, command)
-
-        for i in range(1, (seconds + 1)):
-            command = {'transitiontime': 1, 'on': False}
-            self.b.set_group(0, command)
-            time.sleep(delay)
-
-            command = {'transitiontime': 1, 'on': True, 'bri': self.fIntensity}
-            self.b.set_group(0, command)
-            time.sleep(delay)
-
-    def advanceAsOne(self, tTime):
-        lrColor = self.b.get_light(10, 'xy')
-
-        if lrColor == self.red:
-            lrCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-        elif lrColor == self.magenta:
-            lrCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-        elif lrColor == self.blue:
-            lrCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-        elif lrColor == self.lblue:
-            lrCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-        elif lrColor == self.green:
-            lrCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-        elif lrColor == self.yellow:
-            lrCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-        else:
-            lrCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-
-        self.b.set_group(0, lrCommand)
-
-    def advanceLights(self, tTime):
-        lrColor = self.b.get_light(10, 'xy')
-
-        if lrColor == self.red:
-            lrCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-        elif lrColor == self.magenta:
-            lrCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-        elif lrColor == self.blue:
-            lrCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-        elif lrColor == self.lblue:
-            lrCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-        elif lrColor == self.green:
-            lrCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-        elif lrColor == self.yellow:
-            lrCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-        else:
-            lrCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-            doorCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-            hwCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-            kitchenCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-
-        self.updateLR(lrCommand)
-        self.updateDoor(doorCommand)
-        self.updateHW(hwCommand)
-        self.updateKitchen(kitchenCommand)
-
+#lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
 
 class DisplayController:
     def __init__(self, queue):
         self.queue = queue
+        self.lcd = ShotsAlarmSerLCD()
 
     def setMessage(self, value):
         logger.info(value)
-        lcd.clear()
-        lcd.write_string(value)
+        self.lcd.clear()
+        self.lcd.setColorName("White")
+        self.lcd.writeCenter(value)
 
     def processIncoming(self, cdLen, goHold, songLen):
         """Handle all messages currently in the queue, if any."""
@@ -163,7 +53,7 @@ class DisplayController:
 
                     # countdown stage
                     if (count < cdLen):
-                        self.setMessage("SHOTS IN: {}".format(cdLen - count))
+                        self.setMessage(f"SHOTS IN: {cdLen - count}")
 
                     # GO!! stage
                     else:
@@ -182,11 +72,7 @@ class DisplayController:
                     strobe.off()
 
             except queue.Empty:
-                # just on general principles, although we don't
-                # expect this branch to be taken in this case
                 pass
-
-
 
 #######################
 ## Thread Management ##
@@ -201,9 +87,7 @@ class ThreadedClient:
 
     def __init__(self, user, song, cdLen, goHold):
         """
-        Start the GUI and the asynchronous threads. We are in the main
-        (original) thread of the application, which will later be used by
-        the GUI as well. We spawn a new thread for the worker (I/O).
+        Start the asynchronous threads.
         """
 
         # GUI will be visible after tkinter.Tk()
@@ -253,7 +137,7 @@ class ThreadedClient:
 
         # setup hue
         if (useHue):
-            self.myHue = hueControl()
+            self.myHue = ShotsAlarmHueControl(Private.HUE_IP)
 
         # Set up the thread to do asynchronous I/O
         self.running = 1
@@ -314,6 +198,11 @@ class ThreadedClient:
             logger.debug("timer released lock")
             time.sleep(1)
 
+        if not self.running:
+            # This is the brutal stop of the system.
+            # should do some cleanup before actually shutting it down.
+            sys.exit(1)
+
     # runs once an hour to make sure
     # count doesn't get too big
     def watchdogThreadCall(self):
@@ -360,12 +249,9 @@ class ThreadedClient:
         """
         Check every 200 ms if there is something new in the queue.
         """
-        self.display.processIncoming(self.cdLen, self.goHold, self.songLength)
-        if not self.running:
-            # This is the brutal stop of the system.
-            # should do some cleanup before actually shutting it down.
-            sys.exit(1)
-        time.sleep(0.2)
+        while self.running:
+            self.display.processIncoming(self.cdLen, self.goHold, self.songLength)
+            time.sleep(0.2)
 
     ##########################
     ## PullStation Tracking ##
@@ -490,8 +376,8 @@ user = "8w5yxlh9yqr8ooaizx3ca7grp" #moptechdev
 # song = "Like A Dream" # for testing without having to listen to "Shots" repeatedly
 song = "Hallelujah" # short for testing song-end behavior
 
-cdLen = 60
-goHold = 15
+cdLen = 5
+goHold = 5
 
 # initialize our main thread management and pass root
 client = ThreadedClient(user, song, cdLen, goHold)
