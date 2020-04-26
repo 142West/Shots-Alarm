@@ -261,7 +261,7 @@ class ThreadedClient:
         self.queue = queue.Queue()
 
         # Create a lock to access shared resources amongst threads
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         # Set up the GUIPart
         # we pass it the master (root), the queue, the endApplication function, and the hide / show functions
@@ -279,43 +279,30 @@ class ThreadedClient:
 
         # Set up the thread to do asynchronous I/O
         self.running = 1
-        self.thread1 = threading.Thread(target=self.workerThread1)
-        self.thread1.start()
+        self.timerThread = threading.Thread(target=self.timerThreadCall)
+        self.timerThread.start()
 
-        self.thread2 = threading.Thread(target=self.workerThread2)
-        self.thread2.start()
+        self.watchdogThread = threading.Thread(target=self.watchdogThreadCall)
+        self.watchdogThread.start()
 
-        self.thread3 = threading.Thread(target=self.workerThread3)
-        self.thread3.start()
+        self.hueThread = threading.Thread(target=self.hueThreadCall)
+        self.hueThread.start()
 
-        self.thread4 = threading.Thread(target=self.workerThread4)
-        self.thread4.start()
+        # eventually merge this into hueThread and remove
+        self.hueThread2 = threading.Thread(target=self.hueThread2Call)
+        self.hueThread2.start()
 
-        # Start the periodic call in the GUI to check if the queue contains
-        # anything
-        self.periodicCall()
+        self.networkThread = threading.Thread(target=self.networkThreadCall)
+        self.networkThread.start()
 
-    ###########################################
-    ## Periodic Update Function (root.after) ##
-    ###########################################
-
-    def periodicCall(self):
-        """
-        Check every 200 ms if there is something new in the queue.
-        """
-        self.gui.processIncoming(self.cdLen, self.goHold, self.songLength)
-        if not self.running:
-            # This is the brutal stop of the system.
-            # should do some cleanup before actually shutting it down.
-            sys.exit(1)
-
-        threading.Timer(.2, self.periodicCall).start()
+        self.displayThread = threading.Thread(target=self.displayThreadCall)
+        self.displayThread.start()
 
     ###########################################
     ## Worker Threads (for asynchronous I/O) ##
     ###########################################
 
-    def workerThread1(self):  # ORIGINAL-WORKING
+    def timerThreadCall(self):  # ORIGINAL-WORKING
         """
         This is where we handle the asynchronous I/O. For example, it may be
         a 'select(  )'. One important thing to remember is that the thread has
@@ -329,6 +316,7 @@ class ThreadedClient:
         while self.running:
             # make sure we have access to shared resource
             with self.lock:
+                logger.debug("timer acquired lock")
                 # make sure shots is activated
                 if self.shotsFired:
                     # make sure we haven't been counting longer than the song length
@@ -345,19 +333,23 @@ class ThreadedClient:
 
                 else:  # shots not fired
                     pass
+            logger.debug("timer released lock")
             time.sleep(1)
 
     # runs once an hour to make sure
     # count doesn't get too big
-    def workerThread2(self):
+    def watchdogThreadCall(self):
         while self.running:
             time.sleep(3600)
             if self.count >= 3600:
                 # make sure we have access to shared resource
                 with self.lock:
+                    logger.debug("watchdog acquired lock")
                     self.count = 0
+                logger.debug("watchdog released lock")
 
-    def workerThread3(self):
+
+    def hueThreadCall(self):
         while self.running:
             if useHue:
                 if self.shotsFired and not self.flashed:
@@ -375,15 +367,27 @@ class ThreadedClient:
                 else:
                     time.sleep(0.2)
 
-    def workerThread4(self):
+    def hueThread2Call(self):
         while self.running:
             if not self.shotsFired and useHue == True:
                 self.myHue.advanceLights(50)
             time.sleep(10)
 
-    def networkThread(self):
+    def networkThreadCall(self):
         while self.running:
+            time.sleep(0.2)
             pass
+
+    def displayThreadCall(self):
+        """
+        Check every 200 ms if there is something new in the queue.
+        """
+        self.gui.processIncoming(self.cdLen, self.goHold, self.songLength)
+        if not self.running:
+            # This is the brutal stop of the system.
+            # should do some cleanup before actually shutting it down.
+            sys.exit(1)
+        time.sleep(0.2)
 
     ##########################
     ## PullStation Tracking ##
@@ -420,7 +424,7 @@ class ThreadedClient:
             self.mySpotipy.playNoContext(self.song)
 
             # CRANK IT UP
-            self.mySpotipy.volumeUp()
+            #self.mySpotipy.volumeUp()
 
         else:  # couldn't log in
             logger.error("CAN'T GET SPOTIFY TOKEN")
@@ -430,7 +434,9 @@ class ThreadedClient:
 
         # make sure we have access to shared resource
         with self.lock:
+            logger.debug("alarmActivate acquired lock")
             self.count = 0
+        logger.debug("alarmActivate released lock")
 
     def alarmCancel(self):
         # if we haven't already canceled
@@ -446,8 +452,9 @@ class ThreadedClient:
             # make sure we have access to shared resource
             logger.debug("Attempting Counter Reset...")
             with self.lock:
+                logger.debug("alarmCancel acquired lock")
                 self.count = 0
-            logger.debug("Count Reset")
+            logger.debug("alarmCancel Released lock")
 
            # (this handled in ProcessIncoming, here for redundancy)
             # turn off strobe
@@ -456,7 +463,7 @@ class ThreadedClient:
             # return to previously playing song
             if self.bookmark:
                 self.mySpotipy.playWithContext(self.bookmark)
-                self.mySpotipy.volumeDown()
+                #self.mySpotipy.volumeDown()
                 logger.debug("Returned to Bookmark")
 
     ############################
