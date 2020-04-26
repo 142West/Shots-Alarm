@@ -10,7 +10,8 @@ class ShotsAlarmSpotipy:
         "Shots": u'spotify:track:1V4jC0vJ5525lEF1bFgPX2',
         "White Noise" : u'spotify:track:65rkHetZXO6DQmBh3C2YtW',
         "Never Gonna Give You Up" : u'spotify:track:7GhIk7Il098yCjg4BQjzvb',
-        "Like A Dream" : u'spotify:track:2eJogHu4qygT1BDhAve9Us'
+        "Like A Dream" : u'spotify:track:2eJogHu4qygT1BDhAve9Us',
+        "Hallelujah" : u'spotify:track:57suk8NVdGdoVON1CEbeSn'
     }
 
     def __init__(self, user, client_id, client_secret, redirect_uri):
@@ -64,7 +65,6 @@ class ShotsAlarmSpotipy:
         # double check that we are logged in
         self.spLogin()
         trackData = self.sp.current_user_playing_track()
-        print(trackData)
 
         return trackData
 
@@ -99,12 +99,16 @@ class ShotsAlarmSpotipy:
 
     # get all the info we need to save a snapshot of current song
     def saveSpot(self):
-        theTrack = []
-        trackData = self.getCurrentTrackData()
-        theTrack.append(self.getCurrentProgress(trackData))
-        theTrack.append(self.getCurrentTrackURI(trackData))
-        theTrack.append(self.getCurrentTrackContext(trackData))
-        return theTrack
+        # double check that we are logged in
+        if self.spLogin():
+            theTrack = []
+            trackData = self.getCurrentTrackData()
+            theTrack.append(self.getCurrentProgress(trackData))
+            theTrack.append(self.getCurrentTrackURI(trackData))
+            theTrack.append(self.getCurrentTrackContext(trackData))
+            return theTrack
+        else:
+            return 0
 
     # Play a song from URI with no context.
     # This can be used for song injection
