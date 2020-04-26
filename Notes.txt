@@ -1,0 +1,45 @@
+Threads:
+    - TimerThread
+        - lightweight code to ensure accurate time-keeping
+        - count elapsed seconds into injected song
+        - cancel alarm if elapsed time > injected song length
+
+    - WatchdogThread
+        - resets timer thread periodically (once an hour) to avoid overflow
+
+    - DisplayThread
+        - process count into useful display information
+        - (possible location for strobe handling?)
+
+    - HueThread
+        - handle hue API calls
+
+     - NetworkThread
+        - handle comms with remote pull station
+
+- should ThreadedClient be split up somehow? Does it make sense to have so many
+  unrelated things mixed in together, or does it need to be this way as a sort of
+  "main" code? What about sub-classes? There are a lot of class variables that
+  are not necessarily used across the board. Maybe need to make some form of
+  flowchart for this to identify what needs to talk / listen to what
+
+- Change Queue to an array variable [count, programState] and handle state
+  processing in the TimerThread
+
+- strobe should be moved into a class and on/off should not be handled in
+  "ProcessIncoming," as the current arrangement continues calling the on/off
+  functions without regard for the strobe status
+
+- periodicCall is functioning as the foreground thread. Now that the GUI has
+  been removed and no longer requires a foreground thread, periodicCall should
+  be made a background thread
+
+- move hue class to separate util file (display as well)
+
+- rework hue thread to be more generic, not calling specific fixtures.
+  Things like flashGreen, flashRed, AdvanceGreen, etc
+
+- alarmCancel runs successfully when called by GPIO, but does not run successfully
+  when called inside of workerThread1. It gets stuck waiting for lock when trying
+  to reset the counter. This prevents resuming the previous song after the injected
+  song has played in its entirety.
