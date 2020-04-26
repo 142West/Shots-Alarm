@@ -13,8 +13,8 @@ SCOPE0 = 'user-library-read'
 SCOPE1 = 'user-read-playback-state'
 SCOPE2 = 'user-modify-playback-state'
 TOTAL_SCOPE = SCOPE0 + ' ' + SCOPE1 + ' '+ SCOPE2
-CLIENT_ID='69e91797ca0143a3a51428e87685b6f0'
-CLIENT_SECRET='9d9cb5971edc422299042975ceb22ce2'
+CLIENT_ID=''
+CLIENT_SECRET=''
 REDIRECT_URI='http://localhost:8000'
 
 RA = u'spotify:track:7GhIk7Il098yCjg4BQjzvb'
