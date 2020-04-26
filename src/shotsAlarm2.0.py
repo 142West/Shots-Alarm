@@ -9,15 +9,21 @@ from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
 from RPi import GPIO
+import logging
+
+# set up logging
+logger = logging.getLogger("Shots Alarm")
+logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
-print(GPIO.getmode())
 GPIO.setmode(GPIO.BCM)
 pullStation = Button(4)
 strobe = DigitalOutputDevice(17)
 strobe.off()
+logger.debug("GPIO initialized")
 
 useHue = False
+logger.debug(f"Hue Integration: {useHue}")
 
 lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
 
@@ -160,8 +166,8 @@ class DisplayController:
         '''
 
     def setMessage(self, value):
-        print(value);
-        lcd.clear();
+        logger.info(value)
+        lcd.clear()
         lcd.write_string(value)
 
     def processIncoming(self, cdLen, goHold, songLen):
@@ -330,11 +336,13 @@ class ThreadedClient:
                         # update queue with count if countdown stage or go stage
                         if (self.count <= (self.cdLen + self.goHold)):
                             self.queue.put(self.count)
-                            self.count += 1
                         else:  # not in countdown stage or go stage
                             self.queue.put(None)
+                        # increment counter
+                        self.count += 1
                     else:  # song has ended
                         self.alarmCancel()
+
                 else:  # shots not fired
                     pass
             time.sleep(1)
@@ -382,7 +390,7 @@ class ThreadedClient:
     ##########################
 
     def alarmActivate(self):
-        print("alarm activated")
+        logger.info("Alarm Activated")
 
         # PULL SPOTIFY DATA
         # make sure we can get a token or refresh
@@ -393,16 +401,17 @@ class ThreadedClient:
                 self.flashed = 0
                 self.flashed2 = 0
 
+            # (this is now handled in ProcessIncoming)
             # turn on strobe
             # strobe.on()
 
             # save our current spot
             self.bookmark = self.mySpotipy.saveSpot()
-            # print(self.mySpot)
+            logger.debug(f"Bookmark Data: {self.bookmark}")
 
             # get the length of the new song
             self.songLength = self.mySpotipy.getSongLength(self.song)
-            print(self.seconds2string(self.songLength))
+            logger.debug(f"Injected Song Length: {(self.seconds2string(self.songLength))}")
 
             # keep track of whether or not wer are running Shots
             self.shotsFired = 1
@@ -414,7 +423,7 @@ class ThreadedClient:
             self.mySpotipy.volumeUp()
 
         else:  # couldn't log in
-            print("ERROR: CAN'T GET SPOTIFY TOKEN")
+            logger.error("CAN'T GET SPOTIFY TOKEN")
 
         # keep track of alarm activation
         self.shotsFired = 1
@@ -426,7 +435,7 @@ class ThreadedClient:
     def alarmCancel(self):
         # if we haven't already canceled
         if self.shotsFired:
-            print("alarm canceled")
+            logger.info("Alarm Canceled")
 
             # keep track of alarm activation
             self.shotsFired = 0
@@ -435,9 +444,12 @@ class ThreadedClient:
                 self.flashed2 = 1
 
             # make sure we have access to shared resource
+            logger.debug("Attempting Counter Reset...")
             with self.lock:
                 self.count = 0
+            logger.debug("Count Reset")
 
+           # (this handled in ProcessIncoming, here for redundancy)
             # turn off strobe
             strobe.off()
 
@@ -445,6 +457,7 @@ class ThreadedClient:
             if self.bookmark:
                 self.mySpotipy.playWithContext(self.bookmark)
                 self.mySpotipy.volumeDown()
+                logger.debug("Returned to Bookmark")
 
     ############################
     ## Time String Formatting ##
@@ -471,10 +484,11 @@ user = "8w5yxlh9yqr8ooaizx3ca7grp" #moptechdev
 # user = "59nmtms76slm25a959sz7kieb"
 # user = "vollumd2"
 
-song = "Shots"
-# song = "White Noise"
-# song = "Never Gonna Give You Up"
-# song = "Like A Dream"
+# song = "Shots" # standard
+# song = "White Noise" # for testing
+# song = "Never Gonna Give You Up" for trolling
+# song = "Like A Dream" # for testing without having to listen to "Shots" repeatedly
+song = "Hallelujah" # short for testing song-end behavior
 
 cdLen = 60
 goHold = 15
