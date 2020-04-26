@@ -62,10 +62,7 @@ class ShotsAlarmSpotipy:
 
     # return the user's currently playing track
     def getCurrentTrackData(self):
-        # double check that we are logged in
-        self.spLogin()
         trackData = self.sp.current_user_playing_track()
-
         return trackData
 
     # take currently playing track, return song progress in mills
@@ -99,31 +96,22 @@ class ShotsAlarmSpotipy:
 
     # get all the info we need to save a snapshot of current song
     def saveSpot(self):
-        # double check that we are logged in
-        if self.spLogin():
-            theTrack = []
-            trackData = self.getCurrentTrackData()
-            theTrack.append(self.getCurrentProgress(trackData))
-            theTrack.append(self.getCurrentTrackURI(trackData))
-            theTrack.append(self.getCurrentTrackContext(trackData))
-            return theTrack
-        else:
-            return 0
+        theTrack = []
+        trackData = self.getCurrentTrackData()
+        theTrack.append(self.getCurrentProgress(trackData))
+        theTrack.append(self.getCurrentTrackURI(trackData))
+        theTrack.append(self.getCurrentTrackContext(trackData))
+        return theTrack
 
     # Play a song from URI with no context.
     # This can be used for song injection
     def playNoContext(self, songURI):
-        # double check that we are logged in
-        self.spLogin()
         self.sp.start_playback(None, None, [songURI], None)
 
     # Play a song from URI with context.
     # This can be used to return to song
     # context = [progress, trackURI, trackContext]
     def playWithContext(self, context):
-        # double check that we are logged in
-        self.spLogin()
-
         # double check to make sure we have a context URI
         # if we do, go ahead and play with context
         if context[2]:
@@ -137,9 +125,7 @@ class ShotsAlarmSpotipy:
         self.sp.seek_track(context[0])
 
     def volumeUp(self):
-        self.spLogin()
         self.sp.volume(88)
 
     def volumeDown(self):
-        self.spLogin()
         self.sp.volume(78)
