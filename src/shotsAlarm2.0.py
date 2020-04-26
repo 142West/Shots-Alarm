@@ -4,7 +4,7 @@ import time
 import threading
 import queue
 from gpiozero import Button, DigitalOutputDevice
-import src.util.ShotsAlarmSpotipy as ShotsAlarmSpotipy
+from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
@@ -235,12 +235,13 @@ class ThreadedClient:
         # keep track of seconds into a given track
         self.count = 0
 
-        # What song are we going to play??
-        self.song = song
-
         # keep track of length (sec) of selected song
         # this will be assigned at alarmActivate()
         self.songLength = 0
+
+        # holding place for details of interrupted song
+        # assigned at alarmActivate() and recalled in alarmCancel()
+        self.bookmark = None
 
         # song countdown length
         # this is assigned by init call
@@ -262,6 +263,9 @@ class ThreadedClient:
 
         # Set up the Spotify instance
         self.mySpotipy = ShotsAlarmSpotipy(user, Private.CLIENT_ID, Private.CLIENT_SECRET, Private.REDIRECT_URI)
+
+        # What song are we going to play??
+        self.song = self.mySpotipy.getTrackFromDict(song)
 
         # setup hue
         if (useHue):
@@ -393,7 +397,7 @@ class ThreadedClient:
             # strobe.on()
 
             # save our current spot
-            # self.mySpot = self.mySpotipy.saveSpot()
+            self.bookmark = self.mySpotipy.saveSpot()
             # print(self.mySpot)
 
             # get the length of the new song
@@ -438,8 +442,8 @@ class ThreadedClient:
             strobe.off()
 
             # return to previously playing song
-            if self.mySpot:
-                self.mySpotipy.playWithContext(self.mySpot)
+            if self.bookmark:
+                self.mySpotipy.playWithContext(self.bookmark)
                 self.mySpotipy.volumeDown()
 
     ############################
@@ -463,11 +467,15 @@ class ThreadedClient:
 
 # set ThreadedClient params
 # user = "aflynn73"
+user = "8w5yxlh9yqr8ooaizx3ca7grp" #moptechdev
 # user = "59nmtms76slm25a959sz7kieb"
-user = "vollumd2"
-# song = ASpotipy.WhiteNoise
-# song = ASpotipy.RA
-song = ShotsAlarmSpotipy.SHOTS
+# user = "vollumd2"
+
+song = "Shots"
+# song = "White Noise"
+# song = "Never Gonna Give You Up"
+# song = "Like A Dream"
+
 cdLen = 60
 goHold = 15
 
