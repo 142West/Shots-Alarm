@@ -394,43 +394,49 @@ class ThreadedClient:
     ##########################
 
     def alarmActivate(self):
-        logger.info("Alarm Activated")
+        if not self.shotsFired:
+            logger.info("Alarm Activated")
 
-        # PULL SPOTIFY DATA
-        # make sure we can get a token or refresh
-        if self.mySpotipy.spLogin():
+            # PULL SPOTIFY DATA
+            # make sure we can get a spotify token or refresh
+            if self.mySpotipy.spLogin():
 
-            if useHue == True:
-                # set hue flashed to 0
-                self.flashed = 0
-                self.flashed2 = 0
+                if useHue == True:
+                    # set hue flashed to 0
+                    self.flashed = 0
+                    self.flashed2 = 0
 
-            # (this is now handled in ProcessIncoming)
-            # turn on strobe
-            # strobe.on()
+                # (this is now handled in ProcessIncoming)
+                # turn on strobe
+                # strobe.on()
 
-            # save our current spot
-            self.bookmark = self.mySpotipy.saveSpot()
-            logger.debug(f"Bookmark Data: {self.bookmark}")
+                # save our current spot
+                self.bookmark = self.mySpotipy.saveSpot()
+                logger.debug(f"Saved bookmark {self.bookmark}")
 
-            # get the length of the new song
-            self.songLength = self.mySpotipy.getSongLength(self.song)
-            logger.debug(f"Injected Song Length: {(self.seconds2string(self.songLength))}")
+                # get the length of the new song
+                self.songLength = self.mySpotipy.getSongLength(self.song)
+                logger.debug(f"Injected song length = {(self.seconds2string(self.songLength))}")
 
-            # keep track of whether or not wer are running Shots
-            self.shotsFired = 1
+                # keep track of whether or not wer are running Shots
+                self.shotsFired = 1
 
-            # play our desired song
-            self.mySpotipy.playNoContext(self.song)
+                # play our desired song
+                self.mySpotipy.playNoContext(self.song)
 
-            # CRANK IT UP
-            #self.mySpotipy.volumeUp()
+                # CRANK IT UP
+                #self.mySpotipy.volumeUp()
 
-        else:  # couldn't log in
-            logger.error("CAN'T GET SPOTIFY TOKEN")
+                # keep track of alarm activation
+                self.shotsFired = 1
 
-        # keep track of alarm activation
-        self.shotsFired = 1
+            else:  # couldn't get token or refresh
+                logger.critical("Can't log in to spotify")
+                pass
+
+        else: #shots already fired
+            logger.warning("Alarm already activated")
+            pass
 
         # make sure we have access to shared resource
         with self.lock:
@@ -450,21 +456,30 @@ class ThreadedClient:
                 self.flashed2 = 1
 
             # make sure we have access to shared resource
-            logger.debug("Attempting Counter Reset...")
             with self.lock:
                 logger.debug("alarmCancel acquired lock")
                 self.count = 0
-            logger.debug("alarmCancel Released lock")
+            logger.debug("alarmCancel released lock")
 
            # (this handled in ProcessIncoming, here for redundancy)
             # turn off strobe
             strobe.off()
 
-            # return to previously playing song
-            if self.bookmark:
-                self.mySpotipy.playWithContext(self.bookmark)
-                #self.mySpotipy.volumeDown()
-                logger.debug("Returned to Bookmark")
+            # make sure we can get a spotify token or refresh
+            if self.mySpotipy.spLogin():
+                # return to previously playing song
+                if self.bookmark:
+                    self.mySpotipy.playWithContext(self.bookmark)
+                    #self.mySpotipy.volumeDown()
+                    logger.debug(f"Returned to bookmark {self.bookmark}")
+
+            else:  # couldn't get token or refresh
+                logger.critical("Can't log in to spotify")
+                pass
+
+        else: # alarm already canceled
+            logger.warning("Alarm has already been canceled")
+            pass
 
     ############################
     ## Time String Formatting ##
