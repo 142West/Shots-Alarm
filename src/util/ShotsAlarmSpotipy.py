@@ -4,11 +4,14 @@ import src.util.shotsAlarmUtil as util
 
 # simplify our tasks for interfacing with spotify via spotipy
 class ShotsAlarmSpotipy:
-    # class vars (our song lists so they are accessable)
-    WhiteNoise = u'spotify:track:65rkHetZXO6DQmBh3C2YtW'
-    RA = u'spotify:track:7GhIk7Il098yCjg4BQjzvb'
-    likeAdream = u'spotify:track:2eJogHu4qygT1BDhAve9Us'
-    SHOTS = u'spotify:track:1V4jC0vJ5525lEF1bFgPX2'
+
+    # dict of songs available for injection
+    songs = {
+        "Shots": u'spotify:track:1V4jC0vJ5525lEF1bFgPX2',
+        "White Noise" : u'spotify:track:65rkHetZXO6DQmBh3C2YtW',
+        "Never Gonna Give You Up" : u'spotify:track:7GhIk7Il098yCjg4BQjzvb',
+        "Like A Dream" : u'spotify:track:2eJogHu4qygT1BDhAve9Us'
+    }
 
     def __init__(self, user, client_id, client_secret, redirect_uri):
         self.USERNAME = user
@@ -82,6 +85,12 @@ class ShotsAlarmSpotipy:
             return cContextURI
         else:
             return 0
+
+    # take song name string, return track URI from Dict
+    def getTrackFromDict(self, songName):
+        # if given song name is not in dict, return URI for Shots
+        trackURI = self.songs.get(songName, self.songs.get("Shots"))
+        return trackURI
 
     # take current track, return if playing or not
     def isPlaying(self, trackData):
