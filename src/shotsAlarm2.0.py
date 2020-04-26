@@ -385,3 +385,5 @@ client = ThreadedClient(user, song, cdLen, goHold)
 # set up events for our pullstation
 pullStation.when_pressed = client.alarmActivate
 pullStation.when_released = client.alarmCancel
+
+#test
