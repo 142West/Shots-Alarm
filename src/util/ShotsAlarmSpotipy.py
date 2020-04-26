@@ -25,15 +25,15 @@ class ShotsAlarmSpotipy:
         self.REDIRECT_URI = redirect_uri
 
         # if we have a username, try logging in
-        if self.checkUser():
-            self.sp = self.spLogin()
+        if not self.checkUser():
+            self.spLogin()
 
     # make sure we have a username
     def checkUser(self):
         if self.USERNAME:
-            return 1
-        else:
             return 0
+        else:
+            return 1
 
     # login to Spotify and get token (or refresh)
     def spLogin(self):
@@ -47,11 +47,10 @@ class ShotsAlarmSpotipy:
 
         # if we succeded, return spotify object
         if token:
-            sp = spotipy.Spotify(auth=token)
-            return sp
-        else:
-            print("Can't get token for %s" % self.USERNAME)
+            self.sp = spotipy.Spotify(auth=token)
             return 0
+        else:
+            return 1
 
     # take a song URI and return total seconds and
     # time-formatted minutes / seconds

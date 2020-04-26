@@ -5,6 +5,7 @@ import threading
 import queue
 from gpiozero import Button, DigitalOutputDevice
 from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
+from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
@@ -143,27 +144,8 @@ class hueControl:
 
 
 class DisplayController:
-    def __init__(self, queue, alarmCancelCommand):
+    def __init__(self, queue):
         self.queue = queue
-        self.alarmCancel = alarmCancelCommand
-
-        # Set up the GUI
-
-        '''
-        self.frame = ttk.Frame(master, padding="5 5")
-        if fullscreen:
-            self.frame.master.attributes('-fullscreen', True)
-        self.frame.master = master  # XXX
-        ttk.Label(self.frame, textvariable=self.seconds_var, font=("Courier", 100, "bold")).grid(row=1, column=1)
-        ttk.Button(self.frame, text='Cancel', command=self.cancel).grid(row=2, column=1, sticky="s")
-        root.grid_rowconfigure(0, weight=1)
-        root.grid_columnconfigure(0, weight=1)
-        self.frame.grid_rowconfigure(1, weight=1)
-        self.frame.grid_columnconfigure(1, weight=1)
-        self.frame.grid_rowconfigure(1, minsize=root.winfo_screenheight() / 2)
-        self.frame.grid()
-        self.frame.master.protocol("WM_DELETE_WINDOW", self.cancel)
-        '''
 
     def setMessage(self, value):
         logger.info(value)
@@ -204,9 +186,6 @@ class DisplayController:
                 # expect this branch to be taken in this case
                 pass
 
-    def cancel(self):
-        """Cancel callback, hide."""
-        self.alarmCancel()
 
 
 #######################
@@ -264,8 +243,7 @@ class ThreadedClient:
         self.lock = threading.RLock()
 
         # Set up the GUIPart
-        # we pass it the master (root), the queue, the endApplication function, and the hide / show functions
-        self.gui = DisplayController(self.queue, self.alarmCancel)
+        self.display = DisplayController(self.queue)
 
         # Set up the Spotify instance
         self.mySpotipy = ShotsAlarmSpotipy(user, Private.CLIENT_ID, Private.CLIENT_SECRET, Private.REDIRECT_URI)
@@ -382,7 +360,7 @@ class ThreadedClient:
         """
         Check every 200 ms if there is something new in the queue.
         """
-        self.gui.processIncoming(self.cdLen, self.goHold, self.songLength)
+        self.display.processIncoming(self.cdLen, self.goHold, self.songLength)
         if not self.running:
             # This is the brutal stop of the system.
             # should do some cleanup before actually shutting it down.
@@ -399,7 +377,7 @@ class ThreadedClient:
 
             # PULL SPOTIFY DATA
             # make sure we can get a spotify token or refresh
-            if self.mySpotipy.spLogin():
+            if not self.mySpotipy.spLogin():
 
                 if useHue == True:
                     # set hue flashed to 0
@@ -466,7 +444,7 @@ class ThreadedClient:
             strobe.off()
 
             # make sure we can get a spotify token or refresh
-            if self.mySpotipy.spLogin():
+            if not self.mySpotipy.spLogin():
                 # return to previously playing song
                 if self.bookmark:
                     self.mySpotipy.playWithContext(self.bookmark)
