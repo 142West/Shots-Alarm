@@ -7,7 +7,7 @@ class ShotsAlarmSpotipy:
     # class vars (our song lists so they are accessable)
     WhiteNoise = u'spotify:track:65rkHetZXO6DQmBh3C2YtW'
     RA = u'spotify:track:7GhIk7Il098yCjg4BQjzvb'
-    ikeAdream = u'spotify:track:2eJogHu4qygT1BDhAve9Us'
+    likeAdream = u'spotify:track:2eJogHu4qygT1BDhAve9Us'
     SHOTS = u'spotify:track:1V4jC0vJ5525lEF1bFgPX2'
 
     def __init__(self, user, client_id, client_secret, redirect_uri):
