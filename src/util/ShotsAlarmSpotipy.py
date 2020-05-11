@@ -33,6 +33,9 @@ class ShotsAlarmSpotipy:
         # keep track of if alarm has been activated
         self.shotsFired = False
 
+        # keep track of token status for reporting out logged in, failed, or stuck
+        self.haveToken = 1
+
         # if we have a username, try logging in
         if not self.checkUser():
             self.spLogin()
@@ -50,9 +53,10 @@ class ShotsAlarmSpotipy:
     def spLogin(self):
         """
         login to Spotify and get token (or refresh)
-        :return: Login success (0) / fail (-1)
+        :return: Login success (0) / fail (1)
         """
         # attempt to get an auth token
+        self.haveToken = 1
         token = util.prompt_for_user_token(
             username=self.USERNAME,
             scope=self.TOTAL_SCOPE,
@@ -63,9 +67,10 @@ class ShotsAlarmSpotipy:
         # if we succeded, return spotify object
         if token:
             self.sp = spotipy.Spotify(auth=token)
+            self.haveToken = 0
             return 0
         else:
-            return -1
+            return 1
 
     def getTrackLength(self, trackURI):
         """
@@ -236,19 +241,23 @@ class ShotsAlarmSpotipy:
         Save the current play state if available then start playing alarm track
         :return: success (0) / fail (1)
         """
-        # keep track of internal alarm state
-        self.shotsFired = True
+        # verify that the alarm has not already been activated
+        if not self.shotsFired:
+            # keep track of internal alarm state
+            self.shotsFired = True
 
-        # verify that we are logged in
-        if not self.spLogin():
-            # bookmark current spot (will be empty if no currently playing track)
-            self.bookmark = self.saveSpot()
-            # play the alarm track
-            self.playNoContext(self.alarmTrackURI)
-            # crank it up
-            if self.bookmark:
-                self.volumeUp(self.bookmark, 10)
-            return 0
+            # verify that we are logged in
+            if not self.spLogin():
+                # bookmark current spot (will be empty if no currently playing track)
+                self.bookmark = self.saveSpot()
+                # play the alarm track
+                self.playNoContext(self.alarmTrackURI)
+                # crank it up
+                if self.bookmark:
+                    self.volumeUp(self.bookmark, 10)
+                return 0
+            else:
+                return 1
         else:
             return 1
 
@@ -257,18 +266,22 @@ class ShotsAlarmSpotipy:
         Return to a previous play state via bookmark
         :return: success (0) / fail (1)
         """
-        # keep track of internal alarm state
-        self.shotsFired = False
+        # verify that the alarm has not already been canceled
+        if self.shotsFired:
+            # keep track of internal alarm state
+            self.shotsFired = False
 
-        # verify that we are logged in
-        if not self.spLogin():
-            # verify that we have a bookmark
-            if self.bookmark:
-                # return to our bookmark
-                self.playWithContext(self.bookmark)
-                # return to original volume
-                self.volumeDown(self.bookmark)
-                return 0
+            # verify that we are logged in
+            if not self.spLogin():
+                # verify that we have a bookmark
+                if self.bookmark:
+                    # return to our bookmark
+                    self.playWithContext(self.bookmark)
+                    # return to original volume
+                    self.volumeDown(self.bookmark)
+                    return 0
+                else:
+                    return 1
             else:
                 return 1
         else:
@@ -276,6 +289,10 @@ class ShotsAlarmSpotipy:
 
     def getShotsFired(self):
         return self.shotsFired
+
+    def getStatus(self):
+        return self.haveToken
+
 
 
 
