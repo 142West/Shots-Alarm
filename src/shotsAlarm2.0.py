@@ -279,7 +279,7 @@ class ThreadedClient:
                 logger.debug(f"Saved bookmark {self.bookmark}")
 
                 # get the length of the new song
-                self.songLength = self.mySpotipy.getSongLength(self.song)
+                self.songLength = self.mySpotipy.getTrackLength(self.song)
                 logger.debug(f"Injected song length = {(self.seconds2string(self.songLength))}")
 
                 # keep track of whether or not wer are running Shots
@@ -386,4 +386,3 @@ client = ThreadedClient(user, song, cdLen, goHold)
 pullStation.when_pressed = client.alarmActivate
 pullStation.when_released = client.alarmCancel
 
-#test
