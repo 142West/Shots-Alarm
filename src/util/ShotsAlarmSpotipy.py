@@ -30,6 +30,9 @@ class ShotsAlarmSpotipy:
         # bookmark for place holding
         self.bookmark = None
 
+        # keep track of if alarm has been activated
+        self.shotsFired = False
+
         # if we have a username, try logging in
         if not self.checkUser():
             self.spLogin()
@@ -233,6 +236,9 @@ class ShotsAlarmSpotipy:
         Save the current play state if available then start playing alarm track
         :return: success (0) / fail (1)
         """
+        # keep track of internal alarm state
+        self.shotsFired = True
+
         # verify that we are logged in
         if not self.spLogin():
             # bookmark current spot (will be empty if no currently playing track)
@@ -251,6 +257,9 @@ class ShotsAlarmSpotipy:
         Return to a previous play state via bookmark
         :return: success (0) / fail (1)
         """
+        # keep track of internal alarm state
+        self.shotsFired = False
+
         # verify that we are logged in
         if not self.spLogin():
             # verify that we have a bookmark
@@ -264,6 +273,9 @@ class ShotsAlarmSpotipy:
                 return 1
         else:
             return 1
+
+    def getShotsFired(self):
+        return self.shotsFired
 
 
 
