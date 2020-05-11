@@ -179,7 +179,7 @@ class ShotsAlarmSpotipy:
             self.sp.start_playback(device_id = None,
                                    context_uri = bookmark['context URI'],
                                    uris = None,
-                                   offset = None,
+                                   offset ={"uri" : bookmark['track URI']},
                                    position_ms = bookmark['progress'])
 
         # if we don't have a context URI, just go back to the track
