@@ -2,16 +2,20 @@ import src.Private as Private
 import sys
 import time
 import threading
+import multiprocessing
 import queue
-from gpiozero import Button, DigitalOutputDevice
+from gpiozero import Button
 from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
 from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
 from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
+from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
 from datetime import datetime, timedelta
 from phue import Bridge
 from RPLCD.gpio import CharLCD
 from RPi import GPIO
+
 import logging
+from enum import Enum
 
 # set up logging
 logger = logging.getLogger("Shots Alarm")
@@ -20,368 +24,321 @@ logger.setLevel(logging.DEBUG)
 # globally init our pullstation and strobe
 GPIO.setmode(GPIO.BCM)
 pullStation = Button(4)
-strobe = DigitalOutputDevice(17)
-strobe.off()
+
 logger.debug("GPIO initialized")
 
 useHue = False
 useDisplay = True
 logger.debug(f"Hue Integration: {useHue}")
 logger.debug(f"Display Enabled: {useDisplay}")
+'''
+####################################
+##            NETWORK             ##
+####################################
+'''
+# init network
+'''
+####################################
+##           DISPLAY              ##
+####################################
+'''
+lcd = ShotsAlarmSerLCD()
 
-#lcd = CharLCD(numbering_mode=GPIO.BCM, cols=16, rows=2, pin_rs=26, pin_e=19, pins_data=[21, 20, 16, 12, 13, 6, 5, 11])
+'''
+####################################
+##           SPOTIPY              ##
+####################################
+'''
+# init spotipy instance and log in
+mySpotipy = ShotsAlarmSpotipy(
+    user = Private.USER,
+    client_id = Private.CLIENT_ID,
+    client_secret = Private.CLIENT_SECRET,
+    redirect_uri = Private.REDIRECT_URI
+)
+# select our desired alarm song and get its length
+songLength = mySpotipy.set_alarm_track(Private.SONG)
+logger.debug(f"Selected '{Private.SONG}' with length {songLength}")
 
-class DisplayController:
-    def __init__(self, queue):
-        self.queue = queue
-        self.lcd = ShotsAlarmSerLCD()
+# set up alarm activate and cancel thread calls
 
-    def setMessage(self, value):
-        logger.info(value)
-        self.lcd.clear()
-        self.lcd.setColorName("White")
-        self.lcd.writeCenter(value)
-
-    def processIncoming(self, cdLen, goHold, songLen):
-        """Handle all messages currently in the queue, if any."""
-        while self.queue.qsize():
-            try:
-                count = self.queue.get(0)
-
-                # did we actually send something in the queue
-                if not count == None:
-
-                    # countdown stage
-                    if (count < cdLen):
-                        self.setMessage(f"SHOTS IN: {cdLen - count}")
-
-                    # GO!! stage
-                    else:
-                        # turn strobe on
-                        strobe.on()
-                        # alternate between GO and blank
-                        if (count % 2):
-                            self.setMessage("GO!! GO!! GO!!")
-                        else:
-                            self.setMessage("")
-
-                else:  # count == None
-                    # hide GUI
-                    self.setMessage("")
-                    # turn off strobe
-                    strobe.off()
-
-            except queue.Empty:
-                pass
-
-#######################
-## Thread Management ##
-#######################
-
-class ThreadedClient:
+def spotipy_activate_thread_call(event):
     """
-    Launch the main part of the GUI and the worker thread. periodicCall and
-    endApplication could reside in the GUI part, but putting them here
-    means that you have all the thread controls in a single place.
+    Wait for event then run the spotipy utility alarm activate function
+    :param event: Threading event set at alarmActivate
+    :return: None
     """
+    while True:
+        logger.debug("spotipy_activate_thread WAITING")
+        event.wait()
+        logger.debug("spotipy_activate_thread RUNNING")
+        mySpotipy.alarm_activate()
+        logger.debug("spotipy_activate_thread FINISHED")
+        time.sleep(1)
 
-    def __init__(self, user, song, cdLen, goHold):
-        """
-        Start the asynchronous threads.
-        """
+def spotipy_cancel_thread_call(event):
+    """
+    Wait for event then run the spotipy utility alarm cancel function
+    :param event: Threading event set at alarmCancel
+    :return: None
+    """
+    while True:
+        logger.debug("spotipy_cancel_thread WAITING")
+        event.wait()
+        logger.debug("spotipy_cancel_thread RUNNING")
+        mySpotipy.alarm_cancel()
+        logger.debug("spotipy_cancel_thread FINISHED")
+        time.sleep(1)
 
-        # GUI will be visible after tkinter.Tk()
-        # hide the GUI window for now
-        self.guiVisible = 1
+'''
+####################################
+##             HUE                ##
+####################################
+'''
+def hue_activate_thread_call(event):
+    while True:
+        logger.debug("hue_activate_thread WAITING")
+        event.wait()
+        logger.debug("hue_activate_thread RUNNING")
+        logger.debug("hue_activate_thread FINISHED")
+        time.sleep(1)
 
-        # keep track of whether alarm is active or not
-        self.shotsFired = 0
+def hue_go_thread_call(event):
+    while True:
+        logger.debug("hue_go_thread WAITING")
+        event.wait()
+        logger.debug("hue_go_thread RUNNING")
+        logger.debug("hue_go_thread FINISHED")
+        time.sleep(1)
 
-        # keep track of whether we have flashed hue
-        self.flashed = 0
-        self.flashed2 = 0
+def hue_play_thread_call(event):
+    while True:
+        logger.debug("hue_play_thread WAITING")
+        event.wait()
+        logger.debug("hue_play_thread RUNNING")
+        logger.debug("hue_play_thread FINISHED")
+        time.sleep(1)
 
-        # keep track of seconds into a given track
-        self.count = 0
+def hue_cancel_thread_call(event):
+    while True:
+        logger.debug("hue_cancel_thread WAITING")
+        event.wait()
+        logger.debug("hue_cancel_thread RUNNING")
+        logger.debug("hue_cancel_thread FINISHED")
+        time.sleep(1)
 
-        # keep track of length (sec) of selected song
-        # this will be assigned at alarmActivate()
-        self.songLength = 0
+'''
+####################################
+##            STROBE              ##
+####################################
+'''
+myStrobe = ShotsAlarmStrobe()
 
-        # holding place for details of interrupted song
-        # assigned at alarmActivate() and recalled in alarmCancel()
-        self.bookmark = None
+def strobe_go_thread_call(event):
+    while True:
+        logger.debug("strobe_go_thread WAITING")
+        event.wait()
+        logger.debug("strobe_go_thread RUNNING")
+        myStrobe.on()
+        logger.debug("strobe_go_thread FINISHED")
+        time.sleep(1)
 
-        # song countdown length
-        # this is assigned by init call
-        self.cdLen = cdLen
+def strobe_play_thread_call(event):
+    while True:
+        logger.debug("strobe_play_thread WAITING")
+        event.wait()
+        logger.debug("strobe_play_thread RUNNING")
+        myStrobe.off()
+        logger.debug("strobe_play_thread FINISHED")
+        time.sleep(1)
 
-        # how long to display "GO!!"
-        # this is assigned by init call
-        self.goHold = goHold
+def strobe_cancel_thread_call(event):
+    while True:
+        logger.debug("strobe_cancel_thread WAITING")
+        event.wait()
+        logger.debug("strobe_cancel_thread RUNNING")
+        myStrobe.off()
+        logger.debug("strobe_cancel_thread FINISHED")
+        time.sleep(1)
 
-        # Create the queue
-        self.queue = queue.Queue()
+'''
+####################################
+##         UTILITY STATUS         ##
+####################################
+'''
 
-        # Create a lock to access shared resources amongst threads
-        self.lock = threading.RLock()
+# redneck thread management variable
+running = True
 
-        # Set up the GUIPart
-        self.display = DisplayController(self.queue)
+# keep track of status of all utilities
+status = {}
 
-        # Set up the Spotify instance
-        self.mySpotipy = ShotsAlarmSpotipy(user, Private.CLIENT_ID, Private.CLIENT_SECRET, Private.REDIRECT_URI)
+def status_thread_call():
+    """
+    Get the status of all utilities once per minute
+    :return: None
+    """
+    while running:
 
-        # What song are we going to play??
-        self.song = self.mySpotipy.getTrackFromDict(song)
+        # get Spotify Status
+        status['spotify'] = mySpotipy.get_status()
 
-        # setup hue
-        if (useHue):
-            self.myHue = ShotsAlarmHueControl(Private.HUE_IP)
+        # get Hue Status
+        status['hue'] = None
 
-        # Set up the thread to do asynchronous I/O
-        self.running = 1
-        self.timerThread = threading.Thread(target=self.timerThreadCall)
-        self.timerThread.start()
+        # get Network status
+        status['network'] = None
 
-        self.watchdogThread = threading.Thread(target=self.watchdogThreadCall)
-        self.watchdogThread.start()
+        # report status to logger
+        logger.debug(status)
 
-        self.hueThread = threading.Thread(target=self.hueThreadCall)
-        self.hueThread.start()
+        # wait one minute before checking again
+        time.sleep(60)
 
-        # eventually merge this into hueThread and remove
-        self.hueThread2 = threading.Thread(target=self.hueThread2Call)
-        self.hueThread2.start()
+'''
+####################################
+##         ALARM HANDLING         ##
+####################################
+'''
 
-        self.networkThread = threading.Thread(target=self.networkThreadCall)
-        self.networkThread.start()
+activated = False
+cdLength = Private.COUNTDOWN_LENGTH
+goLength = Private.GO_LENGTH
 
-        self.displayThread = threading.Thread(target=self.displayThreadCall)
-        self.displayThread.start()
+def activate_thread_call(event):
+    global activated
 
-    ###########################################
-    ## Worker Threads (for asynchronous I/O) ##
-    ###########################################
+    logger.debug("activate_thread WAITING")
+    event.wait()
+    logger.debug("activate_thread RUNNING")
 
-    def timerThreadCall(self):  # ORIGINAL-WORKING
-        """
-        This is where we handle the asynchronous I/O. For example, it may be
-        a 'select(  )'. One important thing to remember is that the thread has
-        to yield control pretty regularly, by select or otherwise.
-        """
-        # make sure we have access to shared resource
-        with self.lock:
-            # set count to 0 if this is our first run through
-            self.count = 0
+    # flags for keeping track of which events have been set
+    cdFlag, goFlag, playFlag, endFlag, = False, False, False, False
 
-        while self.running:
-            # make sure we have access to shared resource
-            with self.lock:
-                logger.debug("timer acquired lock")
-                # make sure shots is activated
-                if self.shotsFired:
-                    # make sure we haven't been counting longer than the song length
-                    if (self.count <= self.songLength):
-                        # update queue with count if countdown stage or go stage
-                        if (self.count <= (self.cdLen + self.goHold)):
-                            self.queue.put(self.count)
-                        else:  # not in countdown stage or go stage
-                            self.queue.put(None)
-                        # increment counter
-                        self.count += 1
-                    else:  # song has ended
-                        self.alarmCancel()
+    # make note of the starting time
+    startTime = int(time.time())
 
-                else:  # shots not fired
-                    pass
-            logger.debug("timer released lock")
-            time.sleep(1)
+    # while the alarm is activated
+    while activated:
 
-        if not self.running:
-            # This is the brutal stop of the system.
-            # should do some cleanup before actually shutting it down.
-            sys.exit(1)
+        # get the elapsed time from activation start
+        timeElapsed = int(time.time()) - startTime
+        logger.debug(f"Elapsed time: {timeElapsed} s")
 
-    # runs once an hour to make sure
-    # count doesn't get too big
-    def watchdogThreadCall(self):
-        while self.running:
-            time.sleep(3600)
-            if self.count >= 3600:
-                # make sure we have access to shared resource
-                with self.lock:
-                    logger.debug("watchdog acquired lock")
-                    self.count = 0
-                logger.debug("watchdog released lock")
+        # Initiate the Countdown stage
+        if timeElapsed < cdLength:
+            # check event flag
+            if not cdFlag:
+                cdFlag = True
+                logger.debug("Countdown Stage")
+                # for reference only
+                # activate event already set in alarm_activate()
 
+        # Initiate "GO" stage
+        elif cdLength <= timeElapsed < cdLength + goLength:
+            # check event flag
+            if not goFlag:
+                goFlag = True
+                logger.debug("GO Stage")
+                shotsGoEvent.set()
+                shotsGoEvent.clear()
 
-    def hueThreadCall(self):
-        while self.running:
-            if useHue:
-                if self.shotsFired and not self.flashed:
-                    time.sleep(0.2)
-                    self.flashed = 1
-                    self.myHue.flashLights(self.myHue.red, 1, 5)
-                elif self.shotsFired and self.flashed and self.count >= 6 and self.count <= self.cdLen:
-                    # self.myHue.advanceLights(1)
-                    self.myHue.advanceAsOne(1)
-                    time.sleep(1)
-                elif self.shotsFired and self.flashed and not self.flashed2 and self.count >= self.cdLen:
-                    print("green")
-                    self.flashed2 = 1
-                    self.myHue.flashLights(self.myHue.green, 1, 5)
-                else:
-                    time.sleep(0.2)
+        # Initiate Play stage
+        elif cdLength + goLength <= timeElapsed < songLength:
+            # check event flag
+            if not playFlag:
+                playFlag = True
+                logger.debug("Play Stage")
+                shotsPlayEvent.set()
+                shotsPlayEvent.clear()
 
-    def hueThread2Call(self):
-        while self.running:
-            if not self.shotsFired and useHue == True:
-                self.myHue.advanceLights(50)
-            time.sleep(10)
+        # Initiate End stage
+        elif songLength < timeElapsed:
+            # check event flag
+            if not endFlag:
+                endFlag = True
+                logger.debug("End Stage")
+                alarm_cancel()
 
-    def networkThreadCall(self):
-        while self.running:
-            time.sleep(0.2)
-            pass
+        # A place we hope to never arrive at
+        else:
+            logger.debug("Please check space-time continuum")
 
-    def displayThreadCall(self):
-        """
-        Check every 200 ms if there is something new in the queue.
-        """
-        while self.running:
-            self.display.processIncoming(self.cdLen, self.goHold, self.songLength)
-            time.sleep(0.2)
+        # attempt to keep time
+        time.sleep(1)
 
-    ##########################
-    ## PullStation Tracking ##
-    ##########################
+    logger.debug("activate_thread FINISHED")
 
-    def alarmActivate(self):
-        if not self.shotsFired:
-            logger.info("Alarm Activated")
-
-            # PULL SPOTIFY DATA
-            # make sure we can get a spotify token or refresh
-            if not self.mySpotipy.spLogin():
-
-                if useHue == True:
-                    # set hue flashed to 0
-                    self.flashed = 0
-                    self.flashed2 = 0
-
-                # (this is now handled in ProcessIncoming)
-                # turn on strobe
-                # strobe.on()
-
-                # save our current spot
-                self.bookmark = self.mySpotipy.saveSpot()
-                logger.debug(f"Saved bookmark {self.bookmark}")
-
-                # get the length of the new song
-                self.songLength = self.mySpotipy.getSongLength(self.song)
-                logger.debug(f"Injected song length = {(self.seconds2string(self.songLength))}")
-
-                # keep track of whether or not wer are running Shots
-                self.shotsFired = 1
-
-                # play our desired song
-                self.mySpotipy.playNoContext(self.song)
-
-                # CRANK IT UP
-                #self.mySpotipy.volumeUp()
-
-                # keep track of alarm activation
-                self.shotsFired = 1
-
-            else:  # couldn't get token or refresh
-                logger.critical("Can't log in to spotify")
-                pass
-
-        else: #shots already fired
-            logger.warning("Alarm already activated")
-            pass
-
-        # make sure we have access to shared resource
-        with self.lock:
-            logger.debug("alarmActivate acquired lock")
-            self.count = 0
-        logger.debug("alarmActivate released lock")
-
-    def alarmCancel(self):
-        # if we haven't already canceled
-        if self.shotsFired:
-            logger.info("Alarm Canceled")
-
-            # keep track of alarm activation
-            self.shotsFired = 0
-            if useHue == True:
-                self.flashed = 1
-                self.flashed2 = 1
-
-            # make sure we have access to shared resource
-            with self.lock:
-                logger.debug("alarmCancel acquired lock")
-                self.count = 0
-            logger.debug("alarmCancel released lock")
-
-           # (this handled in ProcessIncoming, here for redundancy)
-            # turn off strobe
-            strobe.off()
-
-            # make sure we can get a spotify token or refresh
-            if not self.mySpotipy.spLogin():
-                # return to previously playing song
-                if self.bookmark:
-                    self.mySpotipy.playWithContext(self.bookmark)
-                    #self.mySpotipy.volumeDown()
-                    logger.debug(f"Returned to bookmark {self.bookmark}")
-
-            else:  # couldn't get token or refresh
-                logger.critical("Can't log in to spotify")
-                pass
-
-        else: # alarm already canceled
-            logger.warning("Alarm has already been canceled")
-            pass
-
-    ############################
-    ## Time String Formatting ##
-    ############################
-
-    # convert seconds to minutes:seconds format, return in array.
-    def seconds2time(self, secs):
-        MinSec = datetime(1, 1, 1) + timedelta(seconds=secs)
-        return [MinSec.minute, MinSec.second]
-
-    # take minutes, seconds array and return as sting (MM:SS)
-    def time2string(self, MinSec):
-        timeStr = "%02d:%02d" % (MinSec[0], MinSec[1])
-        return timeStr
-
-    # take seconds, return as string (MM:SS)
-    def seconds2string(self, secs):
-        return self.time2string(self.seconds2time(secs))
+def alarm_activate():
+    global activated
+    logger.debug("Alarm Activated")
+    if not activated:
+        activated = True
+        activateEvent.set()
+        activateEvent.clear()
 
 
-# set ThreadedClient params
-# user = "aflynn73"
-user = "8w5yxlh9yqr8ooaizx3ca7grp" #moptechdev
-# user = "59nmtms76slm25a959sz7kieb"
-# user = "vollumd2"
+def alarm_cancel():
+    logger.debug("Alarm Canceled")
+    global activated
+    if activated:
+        activated = False
+        cancelEvent.set()
+        cancelEvent.clear()
 
-# song = "Shots" # standard
-# song = "White Noise" # for testing
-# song = "Never Gonna Give You Up" for trolling
-# song = "Like A Dream" # for testing without having to listen to "Shots" repeatedly
-song = "Hallelujah" # short for testing song-end behavior
+        # allow cancel threads to complete
+        logger.debug("Clearing all events...")
+        time.sleep(2)
+        # then reset all events
+        activateEvent.clear()
+        shotsGoEvent.clear()
+        shotsPlayEvent.clear()
+        cancelEvent.clear()
+        logger.debug("All events have been cleared")
 
-cdLen = 5
-goHold = 5
+'''
+####################################
+##       THREAD MANAGEMENT        ##
+####################################
+'''
+# init events
+activateEvent = threading.Event()
+shotsGoEvent = threading.Event()
+shotsPlayEvent = threading.Event()
+cancelEvent = threading.Event()
 
-# initialize our main thread management and pass root
-client = ThreadedClient(user, song, cdLen, goHold)
+# initialize status thread (constantly runs)
+status_thread = threading.Thread(target = status_thread_call)
+
+# initialize all event-driven threads
+activateThread = threading.Thread(target = activate_thread_call, args = [activateEvent])
+spotipyActivateThread = threading.Thread(target = spotipy_activate_thread_call, args = [activateEvent])
+spotipyCancelThread = threading.Thread(target = spotipy_cancel_thread_call, args = [cancelEvent])
+hueActivateThread = threading.Thread(target = hue_activate_thread_call, args = [activateEvent])
+hueGoThread = threading.Thread(target = hue_go_thread_call, args = [shotsGoEvent])
+huePlayThread = threading.Thread(target = hue_play_thread_call, args = [shotsPlayEvent])
+hueCancelThread = threading.Thread(target = hue_cancel_thread_call, args = [cancelEvent])
+strobeGoThread = threading.Thread(target = strobe_go_thread_call, args = [shotsGoEvent])
+strobePlayThread = threading.Thread(target = strobe_play_thread_call, args = [shotsPlayEvent])
+strobeCancelThread = threading.Thread(target = strobe_cancel_thread_call, args = [cancelEvent])
+
+# start all threads
+status_thread.start()
+activateThread.start()
+spotipyActivateThread.start()
+spotipyCancelThread.start()
+hueActivateThread.start()
+hueGoThread.start()
+huePlayThread.start()
+hueCancelThread.start()
+strobeGoThread.start()
+strobePlayThread.start()
+strobeCancelThread.start()
 
 # set up events for our pullstation
-pullStation.when_pressed = client.alarmActivate
-pullStation.when_released = client.alarmCancel
+pullStation.when_pressed = alarm_activate
+pullStation.when_released = alarm_cancel
+
+while 1:
+    time.sleep(0.5)
+
