@@ -11,7 +11,6 @@ from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
 from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
 from datetime import datetime, timedelta
 from phue import Bridge
-from RPLCD.gpio import CharLCD
 from RPi import GPIO
 
 import logging
@@ -19,6 +18,7 @@ from enum import Enum
 
 # set up logging
 logger = logging.getLogger("Shots Alarm")
+logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
@@ -31,6 +31,13 @@ useHue = False
 useDisplay = True
 logger.debug(f"Hue Integration: {useHue}")
 logger.debug(f"Display Enabled: {useDisplay}")
+'''
+####################################
+##            HUE                ##
+####################################
+'''
+hue = ShotsAlarmHueControl(Private.HUE_CONFIG)
+
 '''
 ####################################
 ##            NETWORK             ##
@@ -99,6 +106,7 @@ def hue_activate_thread_call(event):
     while True:
         logger.debug("hue_activate_thread WAITING")
         event.wait()
+        hue.flashLights(hue.red,1,songLength)
         logger.debug("hue_activate_thread RUNNING")
         logger.debug("hue_activate_thread FINISHED")
         time.sleep(1)
@@ -115,6 +123,7 @@ def hue_play_thread_call(event):
     while True:
         logger.debug("hue_play_thread WAITING")
         event.wait()
+        hue.advanceAsOne(1)
         logger.debug("hue_play_thread RUNNING")
         logger.debug("hue_play_thread FINISHED")
         time.sleep(1)

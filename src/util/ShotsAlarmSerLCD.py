@@ -14,7 +14,7 @@ from sparkfun_serlcd import Sparkfun_SerLCD_I2C
 class ShotsAlarmSerLCD:
 
     def __init__(self):
-        i2c = busio.I2C(board.SCL, board.SDA)
+        i2c = busio.I2C(1, 0)
         self.serlcd = Sparkfun_SerLCD_I2C(i2c)
         self.colors = {
             "Black" : [  0,   0,   0],
@@ -59,7 +59,7 @@ class ShotsAlarmSerLCD:
         self.serlcd.write(self.strCenter(text))
 
     def writeColRow(self,text,col,row):
-        self.ser
+        self.serlcd.write(text)
 
     def shotsInit(self, time):
         self.clear()

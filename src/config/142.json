@@ -1,0 +1,22 @@
+{
+    "bridgeIp": "10.142.1.114",
+    "lights": [
+        {
+            "name": "LR 1",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "LR 2",
+            "type": "color",
+            "enabled": false
+        }
+    ],
+
+    "groups": [
+        {
+            "name": 8,
+            "enabled": true
+        }
+    ]
+}

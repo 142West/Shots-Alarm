@@ -2,17 +2,10 @@
 <project version="4">
   <component name="PublishConfigData" autoUpload="Always" serverName="Shots Alarm">
     <serverData>
-      <paths name="Copy of project-level server 'Shots Alarm'">
-        <serverdata>
-          <mappings>
-            <mapping deploy="/home/mop/Shots-Alarm2.0" local="$PROJECT_DIR$" />
-          </mappings>
-        </serverdata>
-      </paths>
       <paths name="Shots Alarm">
         <serverdata>
           <mappings>
-            <mapping deploy="/home/mop/shotsAlarm3.0" local="$PROJECT_DIR$" />
+            <mapping deploy="/home/shots/ShotsAlarm" local="$PROJECT_DIR$" />
           </mappings>
         </serverdata>
       </paths>

@@ -12,7 +12,7 @@ import board
 import busio
 from sparkfun_serlcd import Sparkfun_SerLCD_I2C
 
-i2c = busio.I2C(board.SCL, board.SDA)
+i2c = busio.I2C(1, 0)
 serlcd = Sparkfun_SerLCD_I2C(i2c)
 sleep(1)
 
