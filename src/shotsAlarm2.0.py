@@ -11,9 +11,9 @@ from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
 from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
 from datetime import datetime, timedelta
 from phue import Bridge
-from RPi import GPIO
 
 import logging
+import socket
 from enum import Enum
 
 # set up logging
@@ -22,12 +22,11 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
-GPIO.setmode(GPIO.BCM)
-pullStation = Button(4)
+pullStation = Button(4, bounce_time=.1)
 
 logger.debug("GPIO initialized")
 
-useHue = False
+useHue = True
 useDisplay = True
 logger.debug(f"Hue Integration: {useHue}")
 logger.debug(f"Display Enabled: {useDisplay}")
@@ -36,7 +35,8 @@ logger.debug(f"Display Enabled: {useDisplay}")
 ##            HUE                ##
 ####################################
 '''
-hue = ShotsAlarmHueControl(Private.HUE_CONFIG)
+if useHue:
+    hue = ShotsAlarmHueControl(Private.HUE_CONFIG)
 
 '''
 ####################################
@@ -106,7 +106,8 @@ def hue_activate_thread_call(event):
     while True:
         logger.debug("hue_activate_thread WAITING")
         event.wait()
-        hue.flashLights(hue.red,1,songLength)
+        if useHue:
+            hue.flashLights(hue.red,1,Private.COUNTDOWN_LENGTH)
         logger.debug("hue_activate_thread RUNNING")
         logger.debug("hue_activate_thread FINISHED")
         time.sleep(1)
@@ -115,6 +116,8 @@ def hue_go_thread_call(event):
     while True:
         logger.debug("hue_go_thread WAITING")
         event.wait()
+        if useHue:
+            hue.flashLights(hue.green,1,Private.GO_LENGTH)
         logger.debug("hue_go_thread RUNNING")
         logger.debug("hue_go_thread FINISHED")
         time.sleep(1)
@@ -122,8 +125,11 @@ def hue_go_thread_call(event):
 def hue_play_thread_call(event):
     while True:
         logger.debug("hue_play_thread WAITING")
+        if useHue:
+            hue.colorFade(True)
         event.wait()
-        hue.advanceAsOne(1)
+        if useHue:
+            hue.colorFade(True)
         logger.debug("hue_play_thread RUNNING")
         logger.debug("hue_play_thread FINISHED")
         time.sleep(1)
@@ -132,6 +138,8 @@ def hue_cancel_thread_call(event):
     while True:
         logger.debug("hue_cancel_thread WAITING")
         event.wait()
+        if useHue:
+            hue.colorFade(True)
         logger.debug("hue_cancel_thread RUNNING")
         logger.debug("hue_cancel_thread FINISHED")
         time.sleep(1)
@@ -172,6 +180,29 @@ def strobe_cancel_thread_call(event):
 
 '''
 ####################################
+##            NETWORK             ##
+####################################
+'''
+def network_thread_call():
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(('', int(Private.REMOTE_PORT)))
+
+        status['network'] = "waiting"
+        s.listen()
+        conn, addr = s.accept()
+        with conn:
+            status['network'] = addr
+            while True:
+                data = conn.recv(1024)
+                print (data)
+                if data.decode() == "ACTIVATE":
+                    alarm_activate()
+                if not data:
+                    break
+                conn.sendall(data)
+
+'''
+####################################
 ##         UTILITY STATUS         ##
 ####################################
 '''
@@ -193,10 +224,8 @@ def status_thread_call():
         status['spotify'] = mySpotipy.get_status()
 
         # get Hue Status
-        status['hue'] = None
-
-        # get Network status
-        status['network'] = None
+        if useHue:
+            status['hue'] = hue.getStatus()
 
         # report status to logger
         logger.debug(status)
@@ -316,6 +345,10 @@ shotsGoEvent = threading.Event()
 shotsPlayEvent = threading.Event()
 cancelEvent = threading.Event()
 
+#network thread
+
+networkThread = threading.Thread(target= network_thread_call)
+
 # initialize status thread (constantly runs)
 status_thread = threading.Thread(target = status_thread_call)
 
@@ -332,6 +365,7 @@ strobePlayThread = threading.Thread(target = strobe_play_thread_call, args = [sh
 strobeCancelThread = threading.Thread(target = strobe_cancel_thread_call, args = [cancelEvent])
 
 # start all threads
+networkThread.start()
 status_thread.start()
 activateThread.start()
 spotipyActivateThread.start()

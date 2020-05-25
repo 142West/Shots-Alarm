@@ -41,6 +41,8 @@ class ShotsAlarmHueControl:
         self.b = Bridge(self.bridgeIP)
         self.b.connect()
         self.b.get_api()
+
+        self.flash = False
     #
     # def updateLR(self, command):
     #     self.b.set_group(4, command)
@@ -55,8 +57,15 @@ class ShotsAlarmHueControl:
     # def updateKitchen(self, command):
     #     self.b.set_group(2, command)
     #
+
+    def getStatus(self):
+        if self.b.get_api():
+            return True
+        return False
+
     def flashLights(self, color, delay, seconds):
         command = 0
+        self.flash = True
         for i in range(1, round(seconds) + 1):
             for light in self.lights:
                 if light["enabled"]:
@@ -67,73 +76,21 @@ class ShotsAlarmHueControl:
                     self.b.set_light(light["name"], command)
 
             time.sleep(delay)
+
+        self.flash = False
     #
+    def colorFade(self, enable):
+        self.fade = enable
+        while self.fade and not self.flash:
+            self.advanceAsOne(2)
+            time.sleep(3)
+
+
+
     def advanceAsOne(self, tTime):
-        self.currentColor += 1;
         for light in self.lights:
             if light["enabled"] and light["type"] == "color":
+                self.currentColor += 1;
                 command = {'transitiontime': tTime, 'xy': self.colors[self.currentColor % len(self.colors)-1], 'bri': self.nIntensity}
+                self.b.set_light(light["name"], command)
 
-
-    #     lrColor = self.b.get_light(10, 'xy')
-    #
-    #     if lrColor == self.red:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-    #     elif lrColor == self.magenta:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-    #     elif lrColor == self.blue:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-    #     elif lrColor == self.lblue:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-    #     elif lrColor == self.green:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-    #     elif lrColor == self.yellow:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-    #     else:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-    #
-    #     self.b.set_group(0, lrCommand)
-    #
-    # def advanceLights(self, tTime):
-    #     lrColor = self.b.get_light(10, 'xy')
-    #
-    #     if lrColor == self.red:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-    #     elif lrColor == self.magenta:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-    #     elif lrColor == self.blue:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-    #     elif lrColor == self.lblue:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.green, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-    #     elif lrColor == self.green:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.yellow, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-    #     elif lrColor == self.yellow:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.orange, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-    #     else:
-    #         lrCommand = {'transitiontime': tTime, 'xy': self.red, 'bri': self.nIntensity}
-    #         doorCommand = {'transitiontime': tTime, 'xy': self.magenta, 'bri': self.nIntensity}
-    #         hwCommand = {'transitiontime': tTime, 'xy': self.blue, 'bri': self.nIntensity}
-    #         kitchenCommand = {'transitiontime': tTime, 'xy': self.lblue, 'bri': self.nIntensity}
-    #
-    #     self.updateLR(lrCommand)
-    #     self.updateDoor(doorCommand)
-    #     self.updateHW(hwCommand)
-    #     self.updateKitchen(kitchenCommand)
