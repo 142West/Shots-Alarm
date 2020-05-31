@@ -2,6 +2,7 @@ import spotipy
 import src.util.shotsAlarmUtil as util
 
 
+
 # simplify our tasks for interfacing with spotify via spotipy
 class ShotsAlarmSpotipy:
 
@@ -89,6 +90,9 @@ class ShotsAlarmSpotipy:
         """
         playbackData = self.sp.current_playback()
         return playbackData
+
+    def get_current_user_playing_track(self):
+        return self.sp.current_user_playing_track()
 
     @staticmethod
     def get_playback_track_progress(playbackData):
@@ -295,7 +299,9 @@ class ShotsAlarmSpotipy:
         return self.shotsFired
 
     def get_status(self):
-        return self.haveToken
+        if self.haveToken == 0:
+            return "Connected", 0
+        return "Bad Token", 1
 
 
 

@@ -9,7 +9,7 @@
         {
             "name": "LR 2",
             "type": "color",
-            "enabled": true
+            "enabled": false
         }
     ],
 

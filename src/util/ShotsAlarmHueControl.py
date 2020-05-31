@@ -2,11 +2,12 @@ import json
 import time
 from phue import Bridge
 
+
 # Hue Bridge IP address stored under "HUE_IP" in Private
 
 class ShotsAlarmHueControl:
     def __init__(self, configFileName):
-        f = open("config/"+configFileName)
+        f = open("config/" + configFileName)
         self.config = json.load(f)
         self.lights = self.config["lights"]
         self.groups = self.config["groups"]
@@ -43,54 +44,43 @@ class ShotsAlarmHueControl:
         self.b.get_api()
 
         self.flash = False
-    #
-    # def updateLR(self, command):
-    #     self.b.set_group(4, command)
-    #     self.b.set
-    #
-    # def updateDoor(self, command):
-    #     self.b.set_group(5, command)
-    #
-    # def updateHW(self, command):
-    #     self.b.set_group(6, command)
-    #
-    # def updateKitchen(self, command):
-    #     self.b.set_group(2, command)
-    #
+        self.fade = True
 
     def getStatus(self):
         if self.b.get_api():
-            return True
-        return False
+            return ("Connected", 0)
+        return ("Not Connected", 1)
 
     def flashLights(self, color, delay, seconds):
-        command = 0
         self.flash = True
-        for i in range(1, round(seconds) + 1):
+        currentSeconds = 1
+        while currentSeconds < seconds and self.flash:
             for light in self.lights:
                 if light["enabled"]:
-                    if(light["type"] == "color"):
-                        command = { 'xy': color, "alert": "select", 'bri': self.fIntensity}
+                    if (light["type"] == "color"):
+                        command = {'xy': color, "alert": "select", 'bri': self.fIntensity}
                     else:
                         command = {"alert": "select", 'bri': self.fIntensity}
                     self.b.set_light(light["name"], command)
-
+            currentSeconds += 1
             time.sleep(delay)
 
         self.flash = False
+
     #
     def colorFade(self, enable):
         self.fade = enable
         while self.fade and not self.flash:
-            self.advanceAsOne(2)
-            time.sleep(3)
+            self.advanceAsOne(5)
+            time.sleep(6)
 
-
+    def cancelFlash(self):
+        self.flash = False
 
     def advanceAsOne(self, tTime):
         for light in self.lights:
             if light["enabled"] and light["type"] == "color":
                 self.currentColor += 1;
-                command = {'transitiontime': tTime, 'xy': self.colors[self.currentColor % len(self.colors)-1], 'bri': self.nIntensity}
+                command = {'transitiontime': tTime, 'xy': self.colors[self.currentColor % len(self.colors) - 1],
+                           'bri': self.nIntensity}
                 self.b.set_light(light["name"], command)
-

@@ -1,20 +1,18 @@
-import src.Private as Private
+import asyncio
 import sys
+
+import src.Private as Private
 import time
 import threading
-import multiprocessing
-import queue
 from gpiozero import Button
 from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
 from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
 from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
 from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
-from datetime import datetime, timedelta
-from phue import Bridge
+from src.util.NetworkController import NetworkController
 
 import logging
-import socket
-from enum import Enum
+from signal import pause
 
 # set up logging
 logger = logging.getLogger("Shots Alarm")
@@ -22,12 +20,13 @@ logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
-pullStation = Button(4, bounce_time=.1)
+pullStation = Button(4)
 
 logger.debug("GPIO initialized")
 
 useHue = True
 useDisplay = True
+exitLock = threading.Lock()
 logger.debug(f"Hue Integration: {useHue}")
 logger.debug(f"Display Enabled: {useDisplay}")
 '''
@@ -43,7 +42,7 @@ if useHue:
 ##            NETWORK             ##
 ####################################
 '''
-# init network
+networkController = NetworkController()
 '''
 ####################################
 ##           DISPLAY              ##
@@ -58,14 +57,15 @@ lcd = ShotsAlarmSerLCD()
 '''
 # init spotipy instance and log in
 mySpotipy = ShotsAlarmSpotipy(
-    user = Private.USER,
-    client_id = Private.CLIENT_ID,
-    client_secret = Private.CLIENT_SECRET,
-    redirect_uri = Private.REDIRECT_URI
+    user=Private.USER,
+    client_id=Private.CLIENT_ID,
+    client_secret=Private.CLIENT_SECRET,
+    redirect_uri=Private.REDIRECT_URI
 )
 # select our desired alarm song and get its length
 songLength = mySpotipy.set_alarm_track(Private.SONG)
 logger.debug(f"Selected '{Private.SONG}' with length {songLength}")
+
 
 # set up alarm activate and cancel thread calls
 
@@ -83,6 +83,7 @@ def spotipy_activate_thread_call(event):
         logger.debug("spotipy_activate_thread FINISHED")
         time.sleep(1)
 
+
 def spotipy_cancel_thread_call(event):
     """
     Wait for event then run the spotipy utility alarm cancel function
@@ -97,36 +98,41 @@ def spotipy_cancel_thread_call(event):
         logger.debug("spotipy_cancel_thread FINISHED")
         time.sleep(1)
 
+
 '''
 ####################################
 ##             HUE                ##
 ####################################
 '''
+
+
 def hue_activate_thread_call(event):
     while True:
         logger.debug("hue_activate_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.red,1,Private.COUNTDOWN_LENGTH)
+            hue.flashLights(hue.red, 1, Private.COUNTDOWN_LENGTH)
         logger.debug("hue_activate_thread RUNNING")
         logger.debug("hue_activate_thread FINISHED")
         time.sleep(1)
+
 
 def hue_go_thread_call(event):
     while True:
         logger.debug("hue_go_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.green,1,Private.GO_LENGTH)
+            hue.flashLights(hue.green, 1, Private.GO_LENGTH)
         logger.debug("hue_go_thread RUNNING")
         logger.debug("hue_go_thread FINISHED")
         time.sleep(1)
 
+
 def hue_play_thread_call(event):
+    if useHue:
+        hue.colorFade(True)
     while True:
         logger.debug("hue_play_thread WAITING")
-        if useHue:
-            hue.colorFade(True)
         event.wait()
         if useHue:
             hue.colorFade(True)
@@ -134,15 +140,18 @@ def hue_play_thread_call(event):
         logger.debug("hue_play_thread FINISHED")
         time.sleep(1)
 
+
 def hue_cancel_thread_call(event):
     while True:
         logger.debug("hue_cancel_thread WAITING")
         event.wait()
         if useHue:
+            hue.cancelFlash()
             hue.colorFade(True)
         logger.debug("hue_cancel_thread RUNNING")
         logger.debug("hue_cancel_thread FINISHED")
         time.sleep(1)
+
 
 '''
 ####################################
@@ -150,6 +159,7 @@ def hue_cancel_thread_call(event):
 ####################################
 '''
 myStrobe = ShotsAlarmStrobe()
+
 
 def strobe_go_thread_call(event):
     while True:
@@ -160,6 +170,7 @@ def strobe_go_thread_call(event):
         logger.debug("strobe_go_thread FINISHED")
         time.sleep(1)
 
+
 def strobe_play_thread_call(event):
     while True:
         logger.debug("strobe_play_thread WAITING")
@@ -168,6 +179,7 @@ def strobe_play_thread_call(event):
         myStrobe.off()
         logger.debug("strobe_play_thread FINISHED")
         time.sleep(1)
+
 
 def strobe_cancel_thread_call(event):
     while True:
@@ -178,28 +190,41 @@ def strobe_cancel_thread_call(event):
         logger.debug("strobe_cancel_thread FINISHED")
         time.sleep(1)
 
+
 '''
 ####################################
 ##            NETWORK             ##
 ####################################
 '''
-def network_thread_call():
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('', int(Private.REMOTE_PORT)))
 
-        status['network'] = "waiting"
-        s.listen()
-        conn, addr = s.accept()
-        with conn:
-            status['network'] = addr
-            while True:
-                data = conn.recv(1024)
-                print (data)
-                if data.decode() == "ACTIVATE":
-                    alarm_activate()
-                if not data:
-                    break
-                conn.sendall(data)
+
+async def network_thread_call():
+    networkController.connect()
+    while True:
+        command = await networkController.getData()
+        if command == "ACTIVATE":
+            alarm_activate()
+        if command == "ABORT":
+            alarm_cancel()
+
+
+def display_activate_thread_call(event):
+    while True:
+        event.wait()
+        lcd.shotsCountDown(Private.COUNTDOWN_LENGTH, Private.SONG)
+
+
+def display_go_thread_call(event):
+    while True:
+        event.wait()
+        lcd.shotsGo(Private.SONG)
+
+
+def display_play_thread_call(event):
+    while True:
+        event.wait()
+        lcd.playText(Private.SONG)
+
 
 '''
 ####################################
@@ -213,25 +238,48 @@ running = True
 # keep track of status of all utilities
 status = {}
 
+
 def status_thread_call():
     """
     Get the status of all utilities once per minute
     :return: None
     """
+
+    currentStatus = 0
+
     while running:
 
+
         # get Spotify Status
-        status['spotify'] = mySpotipy.get_status()
+        status['Spotify'] = mySpotipy.get_status()
 
         # get Hue Status
         if useHue:
-            status['hue'] = hue.getStatus()
+            status['Hue'] = hue.getStatus()
+
+        status["Network"] = networkController.getStatus()
+
+        if not activated:
+            line1 = ""
+            currentStatusKey = list(status.keys())[currentStatus % len(list(status.keys()))]
+            line2 = currentStatusKey + ": " + status.get(currentStatusKey)[0]
+            currentStatus += 1
+
+            for key in status.keys():
+                if status.get(key)[1] != 0:
+                    line1 += status.get(key)
+            if line1 == "":
+                line1 = "Ready"
+
+            lcd.clear()
+            lcd.write2Lines(line1, line2)
 
         # report status to logger
         logger.debug(status)
 
         # wait one minute before checking again
-        time.sleep(60)
+        time.sleep(10)
+
 
 '''
 ####################################
@@ -240,99 +288,108 @@ def status_thread_call():
 '''
 
 activated = False
+activated_lock = threading.Lock()
 cdLength = Private.COUNTDOWN_LENGTH
 goLength = Private.GO_LENGTH
 
+
 def activate_thread_call(event):
-    global activated
+    while True:
 
-    logger.debug("activate_thread WAITING")
-    event.wait()
-    logger.debug("activate_thread RUNNING")
+        logger.debug("activate_thread WAITING")
+        event.wait()
+        logger.debug("activate_thread RUNNING")
 
-    # flags for keeping track of which events have been set
-    cdFlag, goFlag, playFlag, endFlag, = False, False, False, False
+        # flags for keeping track of which events have been set
+        cdFlag, goFlag, playFlag, endFlag, = False, False, False, False
 
-    # make note of the starting time
-    startTime = int(time.time())
+        # make note of the starting time
+        startTime = int(time.time())
 
-    # while the alarm is activated
-    while activated:
+        # while the alarm is activated
+        logger.debug("Activated Lock Acquired")
+        while event.isSet():
 
-        # get the elapsed time from activation start
-        timeElapsed = int(time.time()) - startTime
-        logger.debug(f"Elapsed time: {timeElapsed} s")
+            # get the elapsed time from activation start
+            timeElapsed = int(time.time()) - startTime
+            logger.debug(f"Elapsed time: {timeElapsed} s")
 
-        # Initiate the Countdown stage
-        if timeElapsed < cdLength:
-            # check event flag
-            if not cdFlag:
-                cdFlag = True
-                logger.debug("Countdown Stage")
-                # for reference only
-                # activate event already set in alarm_activate()
+            # Initiate the Countdown stage
+            if timeElapsed < cdLength:
+                # check event flag
+                if not cdFlag:
+                    cdFlag = True
+                    logger.debug("Countdown Stage")
+                    countDownEvent.set()
+                    countDownEvent.clear()
 
-        # Initiate "GO" stage
-        elif cdLength <= timeElapsed < cdLength + goLength:
-            # check event flag
-            if not goFlag:
-                goFlag = True
-                logger.debug("GO Stage")
-                shotsGoEvent.set()
-                shotsGoEvent.clear()
+            # Initiate "GO" stage
+            elif cdLength <= timeElapsed < cdLength + goLength:
+                # check event flag
+                if not goFlag:
+                    goFlag = True
+                    logger.debug("GO Stage")
+                    shotsGoEvent.set()
+                    shotsGoEvent.clear()
 
-        # Initiate Play stage
-        elif cdLength + goLength <= timeElapsed < songLength:
-            # check event flag
-            if not playFlag:
-                playFlag = True
-                logger.debug("Play Stage")
-                shotsPlayEvent.set()
-                shotsPlayEvent.clear()
+            # Initiate Play stage
+            elif cdLength + goLength <= timeElapsed < songLength:
+                # check event flag
+                if not playFlag:
+                    playFlag = True
+                    logger.debug("Play Stage")
+                    shotsPlayEvent.set()
+                    shotsPlayEvent.clear()
 
-        # Initiate End stage
-        elif songLength < timeElapsed:
-            # check event flag
-            if not endFlag:
-                endFlag = True
-                logger.debug("End Stage")
-                alarm_cancel()
+            # Initiate End stage
+            elif songLength < timeElapsed:
+                # check event flag
+                if not endFlag:
+                    endFlag = True
+                    logger.debug("End Stage")
+                    alarm_cancel()
 
-        # A place we hope to never arrive at
-        else:
-            logger.debug("Please check space-time continuum")
+            # A place we hope to never arrive at
+            else:
+                logger.debug("Please check space-time continuum")
 
-        # attempt to keep time
-        time.sleep(1)
+            # attempt to keep time
+            time.sleep(1)
 
-    logger.debug("activate_thread FINISHED")
+        logger.debug("activate_thread FINISHED")
+
 
 def alarm_activate():
-    global activated
     logger.debug("Alarm Activated")
+    global activated
     if not activated:
         activated = True
         activateEvent.set()
-        activateEvent.clear()
+    print("ActivateEvent: " + str(activateEvent.is_set()))
 
 
 def alarm_cancel():
     logger.debug("Alarm Canceled")
-    global activated
-    if activated:
-        activated = False
-        cancelEvent.set()
-        cancelEvent.clear()
+    with activated_lock:
+        logger.debug("Activated Lock Acquired")
+        global activated
+        if activated:
+            activated = False
+            activateEvent.clear()
 
-        # allow cancel threads to complete
-        logger.debug("Clearing all events...")
-        time.sleep(2)
-        # then reset all events
-        activateEvent.clear()
-        shotsGoEvent.clear()
-        shotsPlayEvent.clear()
-        cancelEvent.clear()
-        logger.debug("All events have been cleared")
+            cancelEvent.set()
+            cancelEvent.clear()
+
+            # allow cancel threads to complete
+            logger.debug("Clearing all events...")
+            time.sleep(2)
+            # then reset all events
+            activateEvent.clear()
+            shotsGoEvent.clear()
+            shotsPlayEvent.clear()
+            cancelEvent.clear()
+            logger.debug("All events have been cleared")
+
 
 '''
 ####################################
@@ -341,31 +398,31 @@ def alarm_cancel():
 '''
 # init events
 activateEvent = threading.Event()
+countDownEvent = threading.Event()
 shotsGoEvent = threading.Event()
 shotsPlayEvent = threading.Event()
 cancelEvent = threading.Event()
 
-#network thread
 
-networkThread = threading.Thread(target= network_thread_call)
 
 # initialize status thread (constantly runs)
-status_thread = threading.Thread(target = status_thread_call)
+status_thread = threading.Thread(target=status_thread_call)
 
 # initialize all event-driven threads
-activateThread = threading.Thread(target = activate_thread_call, args = [activateEvent])
-spotipyActivateThread = threading.Thread(target = spotipy_activate_thread_call, args = [activateEvent])
-spotipyCancelThread = threading.Thread(target = spotipy_cancel_thread_call, args = [cancelEvent])
-hueActivateThread = threading.Thread(target = hue_activate_thread_call, args = [activateEvent])
-hueGoThread = threading.Thread(target = hue_go_thread_call, args = [shotsGoEvent])
-huePlayThread = threading.Thread(target = hue_play_thread_call, args = [shotsPlayEvent])
-hueCancelThread = threading.Thread(target = hue_cancel_thread_call, args = [cancelEvent])
-strobeGoThread = threading.Thread(target = strobe_go_thread_call, args = [shotsGoEvent])
-strobePlayThread = threading.Thread(target = strobe_play_thread_call, args = [shotsPlayEvent])
-strobeCancelThread = threading.Thread(target = strobe_cancel_thread_call, args = [cancelEvent])
+activateThread = threading.Thread(target=activate_thread_call, args=[activateEvent])
+spotipyActivateThread = threading.Thread(target=spotipy_activate_thread_call, args=[countDownEvent])
+spotipyCancelThread = threading.Thread(target=spotipy_cancel_thread_call, args=[cancelEvent])
+hueActivateThread = threading.Thread(target=hue_activate_thread_call, args=[countDownEvent])
+hueGoThread = threading.Thread(target=hue_go_thread_call, args=[shotsGoEvent])
+huePlayThread = threading.Thread(target=hue_play_thread_call, args=[shotsPlayEvent])
+hueCancelThread = threading.Thread(target=hue_cancel_thread_call, args=[cancelEvent])
+strobeGoThread = threading.Thread(target=strobe_go_thread_call, args=[shotsGoEvent])
+strobePlayThread = threading.Thread(target=strobe_play_thread_call, args=[shotsPlayEvent])
+strobeCancelThread = threading.Thread(target=strobe_cancel_thread_call, args=[cancelEvent])
+display_activate_thread = threading.Thread(target=display_activate_thread_call, args=[countDownEvent])
+display_go_thread = threading.Thread(target=display_go_thread_call, args=[shotsGoEvent])
+display_play_thread = threading.Thread(target=display_play_thread_call, args=[shotsPlayEvent])
 
-# start all threads
-networkThread.start()
 status_thread.start()
 activateThread.start()
 spotipyActivateThread.start()
@@ -377,11 +434,20 @@ hueCancelThread.start()
 strobeGoThread.start()
 strobePlayThread.start()
 strobeCancelThread.start()
+display_play_thread.start()
+display_go_thread.start()
+display_activate_thread.start()
 
 # set up events for our pullstation
 pullStation.when_pressed = alarm_activate
 pullStation.when_released = alarm_cancel
 
-while 1:
-    time.sleep(0.5)
+asyncio.Task(network_thread_call())
 
+try:
+    pause()
+except:
+    networkController.close()
+    lcd.shutdown()
+    logger.info("Network Shutdown")
+    sys.exit(0)
