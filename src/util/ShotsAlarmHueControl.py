@@ -84,3 +84,6 @@ class ShotsAlarmHueControl:
                 command = {'transitiontime': tTime, 'xy': self.colors[self.currentColor % len(self.colors) - 1],
                            'bri': self.nIntensity}
                 self.b.set_light(light["name"], command)
+            if light["enabled"] and light["type"] == "white":
+                command = {'transitiontime': tTime, 'bri': self.nIntensity}
+                self.b.set_light(light["name"], command)

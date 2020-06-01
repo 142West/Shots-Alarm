@@ -9,7 +9,7 @@ from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
 from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
 from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
 from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
-from src.util.NetworkController import NetworkController
+from src.util.ShotsNetworkController import ShotsNetworkController
 
 import logging
 from signal import pause
@@ -42,7 +42,7 @@ if useHue:
 ##            NETWORK             ##
 ####################################
 '''
-networkController = NetworkController()
+networkController = ShotsNetworkController()
 '''
 ####################################
 ##           DISPLAY              ##
@@ -111,7 +111,7 @@ def hue_activate_thread_call(event):
         logger.debug("hue_activate_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.red, 1, Private.COUNTDOWN_LENGTH)
+            hue.flashLights(hue.red, .75, Private.COUNTDOWN_LENGTH)
         logger.debug("hue_activate_thread RUNNING")
         logger.debug("hue_activate_thread FINISHED")
         time.sleep(1)
@@ -122,7 +122,7 @@ def hue_go_thread_call(event):
         logger.debug("hue_go_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.green, 1, Private.GO_LENGTH)
+            hue.flashLights(hue.green, .75, Private.GO_LENGTH)
         logger.debug("hue_go_thread RUNNING")
         logger.debug("hue_go_thread FINISHED")
         time.sleep(1)
@@ -198,10 +198,10 @@ def strobe_cancel_thread_call(event):
 '''
 
 
-async def network_thread_call():
+def network_thread_call():
     networkController.connect()
     while True:
-        command = await networkController.getData()
+        command = networkController.getData()
         if command == "ACTIVATE":
             alarm_activate()
         if command == "ABORT":
@@ -422,6 +422,7 @@ strobeCancelThread = threading.Thread(target=strobe_cancel_thread_call, args=[ca
 display_activate_thread = threading.Thread(target=display_activate_thread_call, args=[countDownEvent])
 display_go_thread = threading.Thread(target=display_go_thread_call, args=[shotsGoEvent])
 display_play_thread = threading.Thread(target=display_play_thread_call, args=[shotsPlayEvent])
+networkControllerThread = threading.Thread(target=network_thread_call)
 
 status_thread.start()
 activateThread.start()
@@ -437,12 +438,11 @@ strobeCancelThread.start()
 display_play_thread.start()
 display_go_thread.start()
 display_activate_thread.start()
+networkControllerThread.start()
 
 # set up events for our pullstation
 pullStation.when_pressed = alarm_activate
 pullStation.when_released = alarm_cancel
-
-asyncio.Task(network_thread_call())
 
 try:
     pause()

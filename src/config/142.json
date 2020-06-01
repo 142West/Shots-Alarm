@@ -9,8 +9,62 @@
         {
             "name": "LR 2",
             "type": "color",
-            "enabled": false
+            "enabled": true
+        },
+
+
+
+        {
+            "name": "Hall 1",
+            "type": "white",
+            "enabled": true
+        },
+        {
+            "name": "Hall 2",
+            "type": "white",
+            "enabled": true
+        },
+        {
+            "name": "Arch",
+            "type": "color",
+            "enabled": true
+        },
+
+
+        {
+            "name": "Kitchen 1",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "Kitchen 2",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "Counter",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "Stove",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "Sink",
+            "type": "color",
+            "enabled": true
+        },
+        {
+            "name": "Counter",
+            "type": "color",
+            "enabled": true
         }
+
+
+
+
     ],
 
     "groups": [
