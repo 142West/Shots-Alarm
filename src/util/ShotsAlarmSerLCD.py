@@ -15,7 +15,8 @@ from sparkfun_serlcd import Sparkfun_SerLCD_I2C
 
 class ShotsAlarmSerLCD:
 
-    def __init__(self):
+    def __init__(self, logger):
+        self.logger = logger
         i2c = busio.I2C(1, 0)
         self.serlcd = Sparkfun_SerLCD_I2C(i2c)
         self.colors = {
@@ -104,6 +105,14 @@ class ShotsAlarmSerLCD:
         if len(text) <= 16:
             return text.center(16, " ")
         return text[0, 15]
+
+    def write32Chars(self, text):
+        self.clear()
+        print("Input text length = " + str(len(text)))
+        writeString = text[0:31]
+        print("Write text length = " + str(len(writeString)))
+        print(text)
+        self.serlcd.write(writeString)
 
     def shutdown(self):
         self.shots = False

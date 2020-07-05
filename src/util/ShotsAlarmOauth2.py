@@ -325,16 +325,31 @@ class SpotifyOAuth(SpotifyAuthBase):
 
     def _open_auth_url(self):
         auth_url = self.get_authorize_url()
-        print("Please navigate here: %s", auth_url)
+        with open("/home/shots/home/shots/ShotsAlarm/src/spotipyURL.txt", "w") as f:
+            f.write(auth_url)
+        print("Please look in /home/shots/home/shots/ShotsAlarm/src/spotipyURL.txt for the authorization url "
+              + "then paste the resulting redirect into spotipyRedirect.txt \n "
+              + "or click on this link and paste it into spotipyRedirect.txt", auth_url)
 
     def _get_auth_response_interactive(self):
         self._open_auth_url()
-        try:
-            response = input("Enter the URL you were redirected to: ")
-        except NameError:
-            response = input("Enter the URL you were redirected to: ")
-
-        return self.parse_response_code(response)
+        foundCode = False
+        with open('/home/shots/home/shots/ShotsAlarm/src/spotipyRedirect.txt', 'w') as fp:
+            fp.truncate(0)
+        while not foundCode:
+            with open("/home/shots/home/shots/ShotsAlarm/src/spotipyRedirect.txt", "r") as f:
+                print("looking for code")
+                code = f.readline()
+                if code:
+                    try:
+                        print("found a code")
+                        response = self.parse_response_code(code)
+                        foundCode = True
+                        print("foundCode")
+                        return response
+                    except Exception as e:
+                        print(e)
+            time.sleep(5)
 
     def _get_auth_response_local_server(self, redirect_port):
         server = start_local_http_server(redirect_port)

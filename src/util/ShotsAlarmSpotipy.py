@@ -1,29 +1,29 @@
 import spotipy
-import src.util.shotsAlarmUtil as util
-
-
 
 # simplify our tasks for interfacing with spotify via spotipy
-class ShotsAlarmSpotipy:
+from util import ShotsAlarmOauth2
 
+
+class ShotsAlarmSpotipy:
     # dict of tracks available for injection
     tracks = {
         "Shots": u'spotify:track:1V4jC0vJ5525lEF1bFgPX2',
-        "White Noise" : u'spotify:track:65rkHetZXO6DQmBh3C2YtW',
-        "Never Gonna Give You Up" : u'spotify:track:7GhIk7Il098yCjg4BQjzvb',
-        "Like A Dream" : u'spotify:track:2eJogHu4qygT1BDhAve9Us',
-        "Hallelujah" : u'spotify:track:57suk8NVdGdoVON1CEbeSn'
+        "White Noise": u'spotify:track:65rkHetZXO6DQmBh3C2YtW',
+        "Never Gonna Give You Up": u'spotify:track:7GhIk7Il098yCjg4BQjzvb',
+        "Like A Dream": u'spotify:track:2eJogHu4qygT1BDhAve9Us',
+        "Hallelujah": u'spotify:track:57suk8NVdGdoVON1CEbeSn'
     }
 
-    def __init__(self, user, client_id, client_secret, redirect_uri):
-        self.USERNAME = user
+    def __init__(self, user, client_id, client_secret, redirect_uri, logger):
+        self.logger = logger
+        self.username = user
         self.SCOPE0 = 'user-library-read'
         self.SCOPE1 = 'user-read-playback-state'
         self.SCOPE2 = 'user-modify-playback-state'
         self.TOTAL_SCOPE = self.SCOPE0 + ' ' + self.SCOPE1 + ' ' + self.SCOPE2
-        self.CLIENT_ID = client_id
-        self.CLIENT_SECRET = client_secret
-        self.REDIRECT_URI = redirect_uri
+        self.clientID = client_id
+        self.clientSecret = client_secret
+        self.redirectURI = redirect_uri
 
         # set default alarm track
         self.alarmTrackURI = self.tracks['Shots']
@@ -37,19 +37,7 @@ class ShotsAlarmSpotipy:
         # keep track of token status for reporting out logged in, failed, or stuck
         self.haveToken = 1
 
-        # if we have a username, try logging in
-        if not self.check_user():
-            self.sp_login()
-
-    def check_user(self):
-        """
-        Verify that a non-empty username was provided at init
-        :return: Username present (0) / absent (-1)
-        """
-        if self.USERNAME:
-            return 0
-        else:
-            return -1
+        self.status = ""
 
     def sp_login(self):
         """
@@ -58,17 +46,30 @@ class ShotsAlarmSpotipy:
         """
         # attempt to get an auth token
         self.haveToken = 1
-        token = util.prompt_for_user_token(
-            username=self.USERNAME,
+        token = None
+
+        sp_oauth = ShotsAlarmOauth2.SpotifyOAuth(
+            self.clientID,
+            self.clientSecret,
+            self.redirectURI,
             scope=self.TOTAL_SCOPE,
-            client_id=self.CLIENT_ID,
-            client_secret=self.CLIENT_SECRET,
-            redirect_uri=self.REDIRECT_URI)
+            cache_path=".cache-" + self.username,
+            show_dialog=False
+        )
+
+        token_info = sp_oauth.get_cached_token()
+        if token_info:
+            token = token_info["access_token"]
+        else:
+            self.status = "Spotipy Err: Token is expired or does not exist"
+            code = sp_oauth.get_auth_response()
+            token = sp_oauth.get_access_token(code, as_dict=False)
 
         # if we succeded, return spotify object
         if token:
             self.sp = spotipy.Spotify(auth=token)
             self.haveToken = 0
+            self.status = ""
             return 0
         else:
             return 1
@@ -99,7 +100,7 @@ class ShotsAlarmSpotipy:
         """
         Extract track progress from track data
         :param playbackData:
-        :return: 
+        :return:
         """
         trackProgress = playbackData['progress_ms']
         return trackProgress
@@ -168,11 +169,11 @@ class ShotsAlarmSpotipy:
         :param trackURI: Spotify track URI with no context
         :return: None
         """
-        self.sp.start_playback(device_id = None,
-                               context_uri = None,
-                               uris = [trackURI],
-                               offset = None,
-                               position_ms = None)
+        self.sp.start_playback(device_id=None,
+                               context_uri=None,
+                               uris=[trackURI],
+                               offset=None,
+                               position_ms=None)
 
     def play_with_context(self, bookmark):
         """
@@ -184,11 +185,11 @@ class ShotsAlarmSpotipy:
         # double check to make sure we have a context URI
         # if we do, go ahead and play with context
         if bookmark['context URI']:
-            self.sp.start_playback(device_id = None,
-                                   context_uri = bookmark['context URI'],
-                                   uris = None,
-                                   offset ={"uri" : bookmark['track URI']},
-                                   position_ms = bookmark['progress'])
+            self.sp.start_playback(device_id=None,
+                                   context_uri=bookmark['context URI'],
+                                   uris=None,
+                                   offset={"uri": bookmark['track URI']},
+                                   position_ms=bookmark['progress'])
 
         # if we don't have a context URI, just go back to the track
         # and manually seek to position
@@ -299,11 +300,6 @@ class ShotsAlarmSpotipy:
         return self.shotsFired
 
     def get_status(self):
-        if self.haveToken == 0:
+        if self.status == "":
             return "Connected", 0
-        return "Bad Token", 1
-
-
-
-
-
+        return self.status, 1

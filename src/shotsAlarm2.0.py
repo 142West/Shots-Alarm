@@ -1,22 +1,27 @@
 import asyncio
 import sys
 
-import src.Private as Private
+import Private
 import time
 import threading
 from gpiozero import Button
-from src.util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
-from src.util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
-from src.util.ShotsAlarmHueControl import ShotsAlarmHueControl
-from src.util.ShotsAlarmStrobe import ShotsAlarmStrobe
-from src.util.ShotsNetworkController import ShotsNetworkController
+from util.ShotsAlarmSpotipy import ShotsAlarmSpotipy
+from util.ShotsAlarmSerLCD import ShotsAlarmSerLCD
+from util.ShotsAlarmHueControl import ShotsAlarmHueControl
+from util.ShotsAlarmStrobe import ShotsAlarmStrobe
+from util.ShotsNetworkController import ShotsNetworkController
 
 import logging
 from signal import pause
 
+START_DELAY = 45
+
 # set up logging
 logger = logging.getLogger("Shots Alarm")
-logger.addHandler(logging.StreamHandler())
+hdlr = logging.FileHandler('/var/tmp/Shots_Alarm.log')
+formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+hdlr.setFormatter(formatter)
+logger.addHandler(hdlr)
 logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
@@ -29,26 +34,34 @@ useDisplay = True
 exitLock = threading.Lock()
 logger.debug(f"Hue Integration: {useHue}")
 logger.debug(f"Display Enabled: {useDisplay}")
+songLength = 100
+
+t = 0
+while t < START_DELAY:
+    t += 1
+    logger.info("Shots Alarm starting in:" + str(START_DELAY - t))
+    time.sleep(1)
+
 '''
 ####################################
 ##            HUE                ##
 ####################################
 '''
 if useHue:
-    hue = ShotsAlarmHueControl(Private.HUE_CONFIG)
+    hue = ShotsAlarmHueControl(Private.HUE_CONFIG, logger)
 
 '''
 ####################################
 ##            NETWORK             ##
 ####################################
 '''
-networkController = ShotsNetworkController()
+networkController = ShotsNetworkController(Private.REMOTE_PORT, logger)
 '''
 ####################################
-##           DISPLAY              ##
+##           DISPLAY              ## 
 ####################################
 '''
-lcd = ShotsAlarmSerLCD()
+lcd = ShotsAlarmSerLCD(logger)
 
 '''
 ####################################
@@ -60,11 +73,10 @@ mySpotipy = ShotsAlarmSpotipy(
     user=Private.USER,
     client_id=Private.CLIENT_ID,
     client_secret=Private.CLIENT_SECRET,
-    redirect_uri=Private.REDIRECT_URI
+    redirect_uri=Private.REDIRECT_URI,
+    logger = logger
 )
 # select our desired alarm song and get its length
-songLength = mySpotipy.set_alarm_track(Private.SONG)
-logger.debug(f"Selected '{Private.SONG}' with length {songLength}")
 
 
 # set up alarm activate and cancel thread calls
@@ -75,6 +87,12 @@ def spotipy_activate_thread_call(event):
     :param event: Threading event set at alarmActivate
     :return: None
     """
+    global songLength
+    # select our desired alarm song and get its length
+    mySpotipy.sp_login()
+    songLength = mySpotipy.set_alarm_track(Private.SONG)
+    logger.debug(f"Selected '{Private.SONG}' with length {songLength}")
+
     while True:
         logger.debug("spotipy_activate_thread WAITING")
         event.wait()
@@ -111,7 +129,7 @@ def hue_activate_thread_call(event):
         logger.debug("hue_activate_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.red, .75, Private.COUNTDOWN_LENGTH)
+            hue.flashLights(hue.red, .75, Private.COUNTDOWN_LENGTH, hue.green, Private.GO_LENGTH)
         logger.debug("hue_activate_thread RUNNING")
         logger.debug("hue_activate_thread FINISHED")
         time.sleep(1)
@@ -122,13 +140,14 @@ def hue_go_thread_call(event):
         logger.debug("hue_go_thread WAITING")
         event.wait()
         if useHue:
-            hue.flashLights(hue.green, .75, Private.GO_LENGTH)
+            pass
         logger.debug("hue_go_thread RUNNING")
         logger.debug("hue_go_thread FINISHED")
         time.sleep(1)
 
 
 def hue_play_thread_call(event):
+    hue.connect()
     if useHue:
         hue.colorFade(True)
     while True:
@@ -246,10 +265,8 @@ def status_thread_call():
     """
 
     currentStatus = 0
-
     while running:
-
-
+        errorStatus = {}
         # get Spotify Status
         status['Spotify'] = mySpotipy.get_status()
 
@@ -267,18 +284,20 @@ def status_thread_call():
 
             for key in status.keys():
                 if status.get(key)[1] != 0:
-                    line1 += status.get(key)
-            if line1 == "":
+                    errorStatus[key] = status.get(key)[0]
+            if len(errorStatus.keys()) == 0:
                 line1 = "Ready"
+                lcd.clear()
+                lcd.write2Lines(line1, line2)
+                time.sleep(10)
+            else:
+                lcd.setColorName("White")
+                currentError = errorStatus.get(list(errorStatus.keys())[currentStatus % len(list(errorStatus.keys()))])
+                lcd.write32Chars(currentError)
+                time.sleep(5)
 
-            lcd.clear()
-            lcd.write2Lines(line1, line2)
-
-        # report status to logger
-        logger.debug(status)
-
-        # wait one minute before checking again
-        time.sleep(10)
+            # report status to logger
+            logger.debug(status)
 
 
 '''
@@ -447,6 +466,7 @@ pullStation.when_released = alarm_cancel
 try:
     pause()
 except:
+    running = False
     networkController.close()
     lcd.shutdown()
     logger.info("Network Shutdown")

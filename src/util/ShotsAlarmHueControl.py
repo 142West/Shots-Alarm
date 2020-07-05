@@ -1,13 +1,17 @@
 import json
 import time
+import os
+
+import phue
 from phue import Bridge
 
 
 # Hue Bridge IP address stored under "HUE_IP" in Private
 
 class ShotsAlarmHueControl:
-    def __init__(self, configFileName):
-        f = open("config/" + configFileName)
+    def __init__(self, configFileName, logger):
+        #print (os.path.abspath(os.curdir))
+        f = open(configFileName)
         self.config = json.load(f)
         self.lights = self.config["lights"]
         self.groups = self.config["groups"]
@@ -38,41 +42,75 @@ class ShotsAlarmHueControl:
         ]
 
         self.currentColor = 0;
-
-        self.b = Bridge(self.bridgeIP)
-        self.b.connect()
-        self.b.get_api()
+        self.connected = False
+        try:
+            self.b = Bridge(self.bridgeIP)
+            self.b.connect()
+            self.b.get_api()
+            self.status = ("Connected", 0)
+            self.connected = True
+        except phue.PhueRegistrationException:
+            self.status = ("Hue Err: Push the bridge button", 1)
+            self.connected = False
 
         self.flash = False
         self.fade = True
 
+    def connect(self):
+        if not self.connected:
+            while not self.connected:
+                try:
+                    self.b = Bridge(self.bridgeIP)
+                    self.b.connect()
+                    self.b.get_api()
+                    self.connected = True
+                    self.status = ("Connected", 0)
+                except phue.PhueRegistrationException or OSError as e:
+                    print(e)
+                    self.status = ("Hue Err: Push the bridge button", 1)
+                    time.sleep(20)
+                    self.connected = False
+
     def getStatus(self):
-        if self.b.get_api():
-            return ("Connected", 0)
-        return ("Not Connected", 1)
+        return self.status
 
-    def flashLights(self, color, delay, seconds):
-        self.flash = True
-        currentSeconds = 1
-        while currentSeconds < seconds and self.flash:
-            for light in self.lights:
-                if light["enabled"]:
-                    if (light["type"] == "color"):
-                        command = {'xy': color, "alert": "select", 'bri': self.fIntensity}
-                    else:
-                        command = {"alert": "select", 'bri': self.fIntensity}
-                    self.b.set_light(light["name"], command)
-            currentSeconds += 1
-            time.sleep(delay)
+    def flashLights(self, color, delay, seconds, color2 = None, seconds2 = None):
+        if self.connected:
+            self.flash = True
+            currentSeconds = 1
+            while currentSeconds < seconds and self.flash:
+                for light in self.lights:
+                    if light["enabled"]:
+                        if (light["type"] == "color"):
+                            command = {'xy': color, "alert": "select", 'bri': self.fIntensity}
+                        else:
+                            command = {"alert": "select", 'bri': self.fIntensity}
+                        self.b.set_light(light["name"], command)
+                currentSeconds += 1
+                time.sleep(delay)
 
-        self.flash = False
+            if color2:
+                currentSeconds = 0
+                while currentSeconds < seconds2 and self.flash:
+                    for light in self.lights:
+                        if light["enabled"]:
+                            if (light["type"] == "color"):
+                                command = {'xy': color2, "alert": "select", 'bri': self.fIntensity}
+                            else:
+                                command = {"alert": "select", 'bri': self.fIntensity}
+                            self.b.set_light(light["name"], command)
+                    currentSeconds += 1
+                    time.sleep(delay)
+
+            self.flash = False
 
     #
     def colorFade(self, enable):
-        self.fade = enable
-        while self.fade and not self.flash:
-            self.advanceAsOne(5)
-            time.sleep(6)
+        if self.connected:
+            self.fade = enable
+            while self.fade and not self.flash:
+                self.advanceAsOne(5)
+                time.sleep(6)
 
     def cancelFlash(self):
         self.flash = False

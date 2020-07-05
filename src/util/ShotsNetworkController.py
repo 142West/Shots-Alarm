@@ -1,13 +1,16 @@
 import socket
-import logging
-from src import Private
 
 
 class ShotsNetworkController:
-    def __init__(self):
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.bind(('', int(Private.REMOTE_PORT)))
-        self.status = "Waiting"
+    def __init__(self, remotePort, logger):
+        self.logger = logger
+        try:
+            self.status = "Waiting"
+            self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.s.bind(('0.0.0.0', int(remotePort)))
+        except OSError as e:
+            logger.critical(e)
+
         self.conn = None
         self.addr = None
 
@@ -27,7 +30,7 @@ class ShotsNetworkController:
             return None
 
     def connect(self):
-        logging.debug("Listening")
+        self.logger.debug("Listening")
         self.s.listen()
 
         self.conn, self.addr = self.s.accept()
@@ -37,7 +40,7 @@ class ShotsNetworkController:
         return self.status, 0
 
     def close(self):
-        logging.debug("Shutting Down")
+        self.logger.debug("Shutting Down")
         if self.conn:
             self.conn.close()
         #self.s.shutdown(socket.SHUT_RDWR)
