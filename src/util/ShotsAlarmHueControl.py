@@ -52,6 +52,13 @@ class ShotsAlarmHueControl:
         except phue.PhueRegistrationException:
             self.status = ("Hue Err: Push the bridge button", 1)
             self.connected = False
+        except phue.PhueRequestTimeout:
+            self.status = ("Hue Err: No Bridge at " + str(self.bridgeIP), 1)
+            self.connected = False
+        except Exception as e:
+            self.status = ("Hue ERR:/var/tmp/Shots_Alarm.log", 1)
+            logger.error(e)
+            self.connected = False
 
         self.flash = False
         self.fade = True
