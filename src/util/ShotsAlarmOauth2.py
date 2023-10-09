@@ -200,7 +200,8 @@ class SpotifyOAuth(SpotifyAuthBase):
         proxies=None,
         show_dialog=False,
         requests_session=True,
-        requests_timeout=None
+        requests_timeout=None,
+        logger=None
     ):
         """
             Creates a SpotifyOAuth object
@@ -218,6 +219,8 @@ class SpotifyOAuth(SpotifyAuthBase):
         """
 
         super(self.__class__, self).__init__(requests_session)
+        self.logger = logger
+        logger.info("Creating OAuth Client")
 
         self.client_id = client_id
         self.client_secret = client_secret
@@ -236,6 +239,7 @@ class SpotifyOAuth(SpotifyAuthBase):
         """ Gets a cached auth token
         """
         token_info = None
+        self.logger.info("Called get_cached_token")
 
         if not self.cache_path and self.username:
             self.cache_path = ".cache-" + str(self.username)
@@ -244,26 +248,32 @@ class SpotifyOAuth(SpotifyAuthBase):
                 "You must either set a cache_path or a username."
             )
 
+            self.logger.info(f"Cache path:{self.cache_path}")
         if self.cache_path:
             try:
+                self.logger.info("Attempting to open cache_path")
                 f = open(self.cache_path)
+                self.logger.info("Done")
                 token_info_string = f.read()
                 f.close()
                 token_info = json.loads(token_info_string)
+                self.logger.info(token_info_string)
 
+                """
                 # if scopes don't match, then bail
                 if "scope" not in token_info or not self._is_scope_subset(
                     self.scope, token_info["scope"]
                 ):
                     return None
+                    """
 
                 if self.is_token_expired(token_info):
                     token_info = self.refresh_access_token(
                         token_info["refresh_token"]
                     )
 
-            except IOError:
-                pass
+            except IOError as e:
+                self.logger.error(f"IO Error: {e}")
         return token_info
 
     def _save_token_info(self, token_info):
@@ -404,6 +414,7 @@ class SpotifyOAuth(SpotifyAuthBase):
                             as a token_info dictionary, otherwise it will be returned
                             as a string.
         """
+        logger.info("Attempting to refresh token")
         if as_dict:
             warnings.warn(
                 "You're using 'as_dict = True'."

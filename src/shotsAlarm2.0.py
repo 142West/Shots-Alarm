@@ -14,7 +14,7 @@ from util.ShotsNetworkController import ShotsNetworkController
 import logging
 from signal import pause
 
-START_DELAY = 45
+START_DELAY = 15
 
 # set up logging
 logger = logging.getLogger("Shots Alarm")
@@ -25,11 +25,11 @@ logger.addHandler(hdlr)
 logger.setLevel(logging.DEBUG)
 
 # globally init our pullstation and strobe
-pullStation = Button(4)
+pullStation = Button(7, pull_up=False)
 
 logger.debug("GPIO initialized")
 
-useHue = True
+useHue = False
 useDisplay = True
 exitLock = threading.Lock()
 logger.debug(f"Hue Integration: {useHue}")
@@ -55,13 +55,16 @@ if useHue:
 ##            NETWORK             ##
 ####################################
 '''
+logger.debug("Initializing network")
 networkController = ShotsNetworkController(Private.REMOTE_PORT, logger)
 '''
 ####################################
 ##           DISPLAY              ## 
 ####################################
 '''
-lcd = ShotsAlarmSerLCD(logger)
+logger.debug("Initializing LCD")
+if useDisplay:
+    lcd = ShotsAlarmSerLCD(logger)
 
 '''
 ####################################
@@ -89,7 +92,9 @@ def spotipy_activate_thread_call(event):
     """
     global songLength
     # select our desired alarm song and get its length
+    logger.debug("WORK DAMMIT")
     mySpotipy.sp_login()
+    logger.debug("Attempted to login")
     songLength = mySpotipy.set_alarm_track(Private.SONG)
     logger.debug(f"Selected '{Private.SONG}' with length {songLength}")
 
@@ -416,6 +421,7 @@ def alarm_cancel():
 ####################################
 '''
 # init events
+logger.debug("Initializing events")
 activateEvent = threading.Event()
 countDownEvent = threading.Event()
 shotsGoEvent = threading.Event()
@@ -424,6 +430,7 @@ cancelEvent = threading.Event()
 
 
 
+logger.debug("Initializing threads")
 # initialize status thread (constantly runs)
 status_thread = threading.Thread(target=status_thread_call)
 
@@ -458,6 +465,8 @@ display_play_thread.start()
 display_go_thread.start()
 display_activate_thread.start()
 networkControllerThread.start()
+
+logger.debug("Initializing pullstation")
 
 # set up events for our pullstation
 pullStation.when_pressed = alarm_activate

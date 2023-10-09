@@ -38,6 +38,7 @@ class ShotsAlarmSpotipy:
         self.haveToken = 1
 
         self.status = ""
+        print("Creating Spotipy Client")
 
     def sp_login(self):
         """
@@ -47,6 +48,9 @@ class ShotsAlarmSpotipy:
         # attempt to get an auth token
         self.haveToken = 1
         token = None
+        self.logger.info("Attempting to log in")
+        self.logger.info("god dammit")
+        self.logger.info(self.username)
 
         sp_oauth = ShotsAlarmOauth2.SpotifyOAuth(
             self.clientID,
@@ -54,10 +58,14 @@ class ShotsAlarmSpotipy:
             self.redirectURI,
             scope=self.TOTAL_SCOPE,
             cache_path=".cache-" + self.username,
-            show_dialog=False
+            show_dialog=True,
+            logger=self.logger
         )
+        self.logger.info("Created sp_oauth")
 
         token_info = sp_oauth.get_cached_token()
+        self.logger.info("Got token_info")
+        self.logger.info(token_info)
         if token_info:
             token = token_info["access_token"]
         else:
@@ -67,6 +75,7 @@ class ShotsAlarmSpotipy:
 
         # if we succeded, return spotify object
         if token:
+            self.logger.info("Token retrieval successful")
             self.sp = spotipy.Spotify(auth=token)
             self.haveToken = 0
             self.status = ""
@@ -155,8 +164,10 @@ class ShotsAlarmSpotipy:
         theTrack = {}
         # get data for currently playing track
         playbackData = self.get_playback_data()
+        self.logger.info("Got playback data, maybe")
         # catch if trackData is empty (nothing currently playing)
         if playbackData:
+            self.logger.info("Got playback data, definitely")
             theTrack['progress'] = (self.get_playback_track_progress(playbackData))
             theTrack['track URI'] = (self.get_playback_track_uri(playbackData))
             theTrack['context URI'] = (self.get_playback_track_context(playbackData))
@@ -169,6 +180,7 @@ class ShotsAlarmSpotipy:
         :param trackURI: Spotify track URI with no context
         :return: None
         """
+        self.logger.info("Playing with no context...")
         self.sp.start_playback(device_id=None,
                                context_uri=None,
                                uris=[trackURI],
@@ -250,25 +262,30 @@ class ShotsAlarmSpotipy:
         Save the current play state if available then start playing alarm track
         :return: success (0) / fail (1)
         """
+        self.logger.info("Activating spotify!")
         # verify that the alarm has not already been activated
-        if not self.shotsFired:
-            # keep track of internal alarm state
-            self.shotsFired = True
+#        if not self.shotsFired or self.shotsFired:
+        # keep track of internal alarm state
+        self.shotsFired = True
 
-            # verify that we are logged in
-            if not self.sp_login():
-                # bookmark current spot (will be empty if no currently playing track)
-                self.bookmark = self.save_spot()
-                # play the alarm track
-                self.play_no_context(self.alarmTrackURI)
-                # crank it up
-                if self.bookmark:
-                    self.volume_up(self.bookmark, 10)
-                return 0
-            else:
-                return 1
+        # verify that we are logged in
+        self.logger.info("Logging in...")
+        if not self.sp_login():
+            self.logger.info("Logged into spotify")
+            # bookmark current spot (will be empty if no currently playing track)
+            #self.bookmark = self.save_spot()
+            self.logger.info("Saved spot")
+            # play the alarm track
+            self.play_no_context(self.alarmTrackURI)
+            self.logger.info("Played track")
+            # crank it up
+            if self.bookmark:
+                self.volume_up(self.bookmark, 10)
+            return 0
         else:
             return 1
+#        else:
+#            return 1
 
     def alarm_cancel(self):
         """
@@ -276,25 +293,26 @@ class ShotsAlarmSpotipy:
         :return: success (0) / fail (1)
         """
         # verify that the alarm has not already been canceled
-        if self.shotsFired:
+#        if self.shotsFired:
             # keep track of internal alarm state
-            self.shotsFired = False
+        self.shotsFired = False
 
-            # verify that we are logged in
-            if not self.sp_login():
-                # verify that we have a bookmark
-                if self.bookmark:
-                    # return to our bookmark
-                    self.play_with_context(self.bookmark)
-                    # return to original volume
-                    self.volume_down(self.bookmark)
-                    return 0
-                else:
-                    return 1
+        # verify that we are logged in
+        if not self.sp_login():
+            # verify that we have a bookmark
+            if self.bookmark:
+                # return to our bookmark
+                self.play_with_context(self.bookmark)
+                # return to original volume
+                self.volume_down(self.bookmark)
+                return 0
             else:
+                self.sp.pause_playback()
                 return 1
         else:
             return 1
+ #       else:
+  #          return 1
 
     def get_shots_fired(self):
         return self.shotsFired

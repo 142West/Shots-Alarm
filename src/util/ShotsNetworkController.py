@@ -15,13 +15,15 @@ class ShotsNetworkController:
         self.addr = None
 
     def getData(self):
+        self.logger.debug(f"Getting data... {self.addr}")
         if self.addr:
             while True:
                 data = self.conn.recv(1024)
-                if data.decode() == "ACTIVATE":
+                self.logger.debug(f"Got data: {data} ({data.decode()})")
+                if data.decode().strip() == "ACTIVATE":
                     self.conn.sendall(b"ACK")
                     return "ACTIVATE"
-                if data.decode() == "ABORT":
+                if data.decode().strip() == "ABORT":
                     self.conn.sendall(b"ACK")
                     return "ABORT"
                 if not data:

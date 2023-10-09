@@ -1,13 +1,14 @@
 {
-    "bridgeIp": "10.142.1.114",
+    "__bridgeIp": "peters.142.life",
+    "bridgeIp": "10.1.11.71",
     "lights": [
         {
-            "name": "LR 1",
+            "name": "living room 1",
             "type": "color",
             "enabled": true
         },
         {
-            "name": "LR 2",
+            "name": "living room 2",
             "type": "color",
             "enabled": true
         },
@@ -15,44 +16,44 @@
 
 
         {
-            "name": "Hall 1",
+            "name": "Hall Light 1",
             "type": "white",
             "enabled": true
         },
         {
-            "name": "Hall 2",
+            "name": "Hall Light 2",
             "type": "white",
             "enabled": true
         },
         {
-            "name": "Arch",
+            "name": "Hall Arch",
             "type": "color",
             "enabled": true
         },
 
 
         {
-            "name": "Kitchen 1",
+            "name": "kitchen 1",
             "type": "color",
             "enabled": true
         },
         {
-            "name": "Kitchen 2",
+            "name": "kitchen 2",
             "type": "color",
             "enabled": true
         },
         {
-            "name": "Counter",
+            "name": "counter strip",
             "type": "color",
             "enabled": true
         },
         {
-            "name": "Stove",
+            "name": "stove strip",
             "type": "color",
             "enabled": true
         },
         {
-            "name": "Sink",
+            "name": "sink",
             "type": "color",
             "enabled": true
         },
