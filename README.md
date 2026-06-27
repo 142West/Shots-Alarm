@@ -20,15 +20,15 @@ A wireless MQTT button for Home Assistant built on a Raspberry Pi Zero W. Design
 ## Requirements
 
 - Raspberry Pi Zero W
-- Raspberry Pi OS Bookworm (tested on Python 3.13)
+- Raspberry Pi OS Trixie
 - Home Assistant with Mosquitto MQTT broker add-on
 
 ---
 
 ## 1. Flash & Configure Pi OS
 
-Flash Raspberry Pi OS Lite (64-bit) using Raspberry Pi Imager. In the imager settings:
-- Set hostname (e.g. `wireless-shotsalarm`)
+Flash Raspberry Pi OS Lite (32-bit) using Raspberry Pi Imager. In the imager settings:
+- Set hostname (e.g. `shots-alarm-remote`)
 - Enable SSH
 - Configure WiFi
 
