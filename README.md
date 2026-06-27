@@ -149,21 +149,9 @@ journalctl -u shots-alarm-remote -f
 
 ---
 
-## 8. Test Without the Hardware
-
-In HA go to **Developer Tools → MQTT** and publish manually:
-
-| Topic | Payload | Expected result |
-|---|---|---|
-| `home/shots-alarm-remote/trigger` | `PRESS` | Sensor turns ON |
-| `home/shots-alarm-remote/trigger` | `RELEASE` | Sensor turns OFF |
-| `home/shots-alarm-remote/status` | `offline` | Sensor shows unavailable |
-
----
-
 ## Configuration Reference
 
-All config lives in `/home/pi/.env`. Only `MQTT_USER` and `MQTT_PASS` are required — everything else has a sensible default.
+All config lives in `/home/pi/Shots-Alarm-Remote/.env`. Only `MQTT_USER` and `MQTT_PASS` are required — everything else has a sensible default.
 
 | Variable | Default | Description |
 |---|---|---|
