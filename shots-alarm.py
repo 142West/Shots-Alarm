@@ -30,6 +30,7 @@ MQTT_TOPIC   = os.getenv("MQTT_TOPIC",   "home/shots-alarm/trigger")
 
 DEVICE_NAME  = os.getenv("DEVICE_NAME",  "shots-alarm")
 RECONNECT_S  = int(os.getenv("RECONNECT_S", "5"))
+HEARTBEAT_S  = int(os.getenv("HEARTBEAT_S", "30"))
 
 STATUS_TOPIC = f"home/{DEVICE_NAME}/status"
 
@@ -132,6 +133,20 @@ trigger_btn.when_pressed  = on_trigger_pressed
 trigger_btn.when_released = on_trigger_released
 
 # ---------------------------------------------
+#  HEARTBEAT — re-publish current state so HA
+#  recovers after a restart
+# ---------------------------------------------
+def _heartbeat_loop():
+    while not _shutdown_evt.is_set():
+        _shutdown_evt.wait(HEARTBEAT_S)
+        if _shutdown_evt.is_set():
+            break
+        if _connected:
+            state = "PRESS" if trigger_btn.is_pressed else "RELEASE"
+            client.publish(MQTT_TOPIC, state, qos=1, retain=False)
+            log.debug(f"Heartbeat '{state}' -> {MQTT_TOPIC}")
+
+# ---------------------------------------------
 #  SIGNAL HANDLING (systemd stop / Ctrl-C)
 # ---------------------------------------------
 def handle_signal(sig, frame):
@@ -156,5 +171,6 @@ if __name__ == "__main__":
     log.info(f"Starting {DEVICE_NAME}...")
     mqtt_connect()
 
+    threading.Thread(target=_heartbeat_loop, daemon=True).start()
     log.info("Running. Pull station to trigger, reset to release.")
     _shutdown_evt.wait()

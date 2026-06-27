@@ -139,3 +139,4 @@ All config lives in `/home/pi/Shots-Alarm/.env`. Only `MQTT_USER` and `MQTT_PASS
 | `MQTT_TOPIC` | `home/shots-alarm/trigger` | Topic for button state |
 | `DEVICE_NAME` | `shots-alarm` | Used in MQTT topics and logs |
 | `RECONNECT_S` | `5` | Seconds between reconnect attempts |
+| `HEARTBEAT_S` | `30` | Seconds between state re-publishes (so HA recovers after restart) |
