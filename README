@@ -1,8 +1,0 @@
-This is the code for the remote for the shots alarm.
-
-Light statuses:
-
-Off: either the pi is off or the battery is dead or the script did not start (sorry, this was the best I could do.
-Blinking: Looking for the main alarm
-Solid: Ready to go
-

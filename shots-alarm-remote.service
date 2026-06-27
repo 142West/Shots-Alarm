@@ -1,0 +1,13 @@
+[Unit]
+Description=Shots Alarm Remote - Wireless MQTT Button
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/home/pi/venv/bin/python /home/pi/Shots-Alarm-Remote/shots-alarm-remote.py
+Restart=always
+RestartSec=5
+User=pi
+
+[Install]
+WantedBy=multi-user.target
