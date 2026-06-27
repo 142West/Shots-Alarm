@@ -1,0 +1,12 @@
+[Unit]
+Description=Shots Alarm - MQTT Pull Station
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/home/pi/venv/bin/python /home/pi/Shots-Alarm/shots-alarm.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

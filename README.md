@@ -1,25 +1,18 @@
-# shots-alarm-remote
+# shots-alarm
 
-A wireless MQTT button for Home Assistant built on a Raspberry Pi Zero W. Designed to be wired to a pull station (fire alarm style) that triggers a Home Assistant automation when pulled and resets when released.
+An MQTT pull station for Home Assistant built on a Raspberry Pi 4. A fire alarm style pull station on GPIO 17 triggers a Home Assistant automation when pulled and resets when released.
 
 ## Hardware
 
 | Component | GPIO |
 |---|---|
-| Status LED | GPIO 17 |
-| Trigger input (pull station) | GPIO 27 |
-| Power button | GPIO 3 (handled by device tree overlay — no code needed) |
-
-**Status LED behaviour:**
-- Blinking — running but not connected to MQTT broker
-- Solid — connected and ready
-- 3 rapid flashes — trigger pulled while disconnected (press ignored)
+| Trigger input (pull station) | GPIO 17 |
 
 ---
 
 ## Requirements
 
-- Raspberry Pi Zero W
+- Raspberry Pi 4
 - Raspberry Pi OS Trixie
 - Home Assistant with Mosquitto MQTT broker add-on
 
@@ -27,29 +20,13 @@ A wireless MQTT button for Home Assistant built on a Raspberry Pi Zero W. Design
 
 ## 1. Flash & Configure Pi OS
 
-Flash Raspberry Pi OS Lite (32-bit) using Raspberry Pi Imager. In the imager settings:
-- Set hostname (e.g. `shots-alarm-remote`)
+Flash Raspberry Pi OS Lite using Raspberry Pi Imager. In the imager settings:
+- Set hostname (e.g. `shots-alarm`)
 - Enable SSH
-- Configure WiFi
 
 ---
 
-## 2. Set Up the Power Button (GPIO 3)
-
-GPIO 3 has a hardware feature that wakes the Pi from halt when pulled low — no code needed. Add the shutdown overlay so pressing the button also gracefully shuts down a running Pi:
-
-```bash
-echo "dtoverlay=gpio-shutdown,gpio_pin=3" | sudo tee -a /boot/firmware/config.txt
-sudo reboot
-```
-
-After this, one button on GPIO 3 gives you full on/off control:
-- **Pi running** → press to shut down gracefully
-- **Pi halted** → press to boot
-
----
-
-## 3. Install Dependencies
+## 2. Install Dependencies
 
 ```bash
 # System packages
@@ -63,32 +40,32 @@ python3 -m venv /home/pi/venv --system-site-packages
 
 ---
 
-## 4. Install the Script
+## 3. Install the Script
 
 ```bash
 # Clone the repo
-git clone https://github.com/142West/Shots-Alarm-Remote.git
-cd Shots-Alarm-Remote
+git clone https://github.com/142West/Shots-Alarm.git
+cd Shots-Alarm
 
 # Copy files
 cp .env.example .env
 ```
 
-Edit `/home/pi/Shots-Alarm-Remote/.env` with your MQTT credentials:
+Edit `/home/pi/Shots-Alarm/.env` with your MQTT credentials:
 
 ```bash
-nano /home/pi/Shots-Alarm-Remote/.env
+nano /home/pi/Shots-Alarm/.env
 ```
 
 Secure the file so credentials aren't world-readable:
 
 ```bash
-chmod 600 /home/pi/Shots-Alarm-Remote/.env
+chmod 600 /home/pi/Shots-Alarm/.env
 ```
 
 ---
 
-## 5. Set Up Mosquitto on Home Assistant
+## 4. Set Up Mosquitto on Home Assistant
 
 In HA go to **Settings → Add-ons → Add-on Store** and install **Mosquitto broker**.
 
@@ -104,20 +81,20 @@ Then go to **Settings → Devices & Services** and add the **MQTT integration** 
 
 ---
 
-## 6. Configure Home Assistant
+## 5. Configure Home Assistant
 
 Add this to your `configuration.yaml`:
 
 ```yaml
 mqtt:
   binary_sensor:
-    - name: "Shots Alarm Remote"
-      unique_id: "shots_alarm_remote"
-      state_topic: "home/shots-alarm-remote/trigger"
+    - name: "Shots Alarm"
+      unique_id: "shots_alarm"
+      state_topic: "home/shots-alarm/trigger"
       payload_on: "PRESS"
       payload_off: "RELEASE"
       device_class: safety
-      availability_topic: "home/shots-alarm-remote/status"
+      availability_topic: "home/shots-alarm/status"
       payload_available: "online"
       payload_not_available: "offline"
 ```
@@ -126,32 +103,32 @@ Reload YAML: **Developer Tools → YAML → Reload All**.
 
 ---
 
-## 7. Install as a System Service
+## 6. Install as a System Service
 
 ```bash
-sudo cp shots-alarm-remote.service /etc/systemd/system/
+sudo cp shots-alarm.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable shots-alarm-remote
-sudo systemctl start shots-alarm-remote
+sudo systemctl enable shots-alarm
+sudo systemctl start shots-alarm
 ```
 
 Check it's running:
 
 ```bash
-sudo systemctl status shots-alarm-remote
+sudo systemctl status shots-alarm
 ```
 
 View live logs:
 
 ```bash
-journalctl -u shots-alarm-remote -f
+journalctl -u shots-alarm -f
 ```
 
 ---
 
 ## Configuration Reference
 
-All config lives in `/home/pi/Shots-Alarm-Remote/.env`. Only `MQTT_USER` and `MQTT_PASS` are required — everything else has a sensible default.
+All config lives in `/home/pi/Shots-Alarm/.env`. Only `MQTT_USER` and `MQTT_PASS` are required — everything else has a sensible default.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -159,7 +136,6 @@ All config lives in `/home/pi/Shots-Alarm-Remote/.env`. Only `MQTT_USER` and `MQ
 | `MQTT_PASS` | — | MQTT password (required) |
 | `MQTT_BROKER` | `homeassistant.local` | HA IP or hostname |
 | `MQTT_PORT` | `1883` | MQTT port |
-| `MQTT_TOPIC` | `home/shots-alarm-remote/trigger` | Topic for button state |
-| `DEVICE_NAME` | `shots-alarm-remote` | Used in MQTT topics and logs |
+| `MQTT_TOPIC` | `home/shots-alarm/trigger` | Topic for button state |
+| `DEVICE_NAME` | `shots-alarm` | Used in MQTT topics and logs |
 | `RECONNECT_S` | `5` | Seconds between reconnect attempts |
-| `BLINK_HZ` | `2` | LED blink speed when not connected |
