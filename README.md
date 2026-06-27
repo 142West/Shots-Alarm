@@ -54,10 +54,10 @@ After this, one button on GPIO 3 gives you full on/off control:
 ```bash
 # System packages
 sudo apt update
-sudo apt install python3-full python3-rpi.gpio -y
+sudo apt install python3-full python3-rpi.gpio git -y
 
 # Virtual environment
-python3 -m venv /home/pi/venv
+python3 -m venv /home/pi/venv --system-site-packages
 /home/pi/venv/bin/pip install paho-mqtt gpiozero python-dotenv
 ```
 
@@ -68,7 +68,7 @@ python3 -m venv /home/pi/venv
 ```bash
 # Clone the repo
 git clone https://github.com/142West/Shots-Alarm-Remote.git
-cd shots-alarm-remote
+cd Shots-Alarm-Remote
 
 # Copy files
 cp .env.example .env
@@ -123,22 +123,6 @@ mqtt:
 ```
 
 Reload YAML: **Developer Tools → YAML → Reload All**.
-
-### Example Automation
-
-```yaml
-alias: "Shots Alarm Triggered"
-trigger:
-  - platform: mqtt
-    topic: home/shots-alarm-remote/trigger
-    payload: "PRESS"
-condition: []
-action:
-  - action: notify.mobile_app_your_phone
-    data:
-      message: "Shots alarm triggered!"
-mode: single
-```
 
 ---
 

@@ -7,7 +7,6 @@ Wants=network-online.target
 ExecStart=/home/pi/venv/bin/python /home/pi/Shots-Alarm-Remote/shots-alarm-remote.py
 Restart=always
 RestartSec=5
-User=pi
 
 [Install]
 WantedBy=multi-user.target
